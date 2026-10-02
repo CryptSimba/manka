@@ -1,0 +1,1496 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Финансовый трекер</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg:#f3f5f8; --panel:#fff; --panel-2:#f8fafc; --border:#e5e9f0;
+    --text:#161c26; --muted:#697586; --accent:#2f6bff; --accent-soft:#e9f0fe;
+    --green:#12a150; --green-soft:#e6f6ee; --red:#e5484d; --red-soft:#fdecec; --amber:#c98a00;
+    --asset:#12a150; --passive:#c98a00; --liab:#e5484d;
+    --shadow:0 1px 2px rgba(20,30,50,.05),0 8px 24px rgba(20,30,50,.05);
+    --radius:14px; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0e1220; --panel:#151a29; --panel-2:#1b2233; --border:#28304a;
+    --text:#e8ecf4; --muted:#93a0b5; --accent:#5b8bff; --accent-soft:#1c2740;
+    --green:#3ecf7f; --green-soft:#12341e; --red:#ff6b6f; --red-soft:#3a1b1d; --amber:#e2a53a;
+    --asset:#3ecf7f; --passive:#e2a53a; --liab:#ff6b6f;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  }}
+  *{box-sizing:border-box} html,body{margin:0;overscroll-behavior-y:none} html{scroll-behavior:smooth;touch-action:pan-x pan-y}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.45}
+  .scroll-x{overflow-x:auto;scrollbar-width:thin}
+  .scroll-x::-webkit-scrollbar{height:8px} .scroll-x::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+  .scroll-x::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+  h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
+  button{font-family:inherit;font-size:14px;cursor:pointer;border:none;background:none;color:inherit}
+  input,select{font-family:inherit;font-size:14px;color:var(--text)}
+  .wrap{max-width:1200px;margin:0 auto;padding:calc(20px + env(safe-area-inset-top,0px) + var(--tg-top,0px)) 18px calc(80px + env(safe-area-inset-bottom,0px) + var(--tg-bottom,0px))}
+  header.top{display:flex;align-items:center;gap:13px;margin-bottom:18px;flex-wrap:wrap}
+  .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#2f6bff,#8a5bff);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px}
+  .title-block h1{font-size:18px}
+  .title-block p{margin:1px 0 0;color:var(--muted);font-size:12.5px}
+  .sp{flex:1}
+  .icon-btn{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--muted);font-size:13px;transition:color .15s,border-color .15s,background .15s}
+  .icon-btn:hover{color:var(--text);border-color:var(--accent)}
+  .icon-btn.on{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+  .cur-toggle{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+  .cur-toggle button{padding:7px 12px;color:var(--muted);font-weight:600}
+  .cur-toggle button.on{background:var(--accent-soft);color:var(--accent)}
+
+  nav.tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--border);padding:5px;border-radius:12px;margin-bottom:20px;overflow-x:auto;position:sticky;top:calc(8px + env(safe-area-inset-top,0px) + var(--tg-top,0px));z-index:20;box-shadow:var(--shadow);scrollbar-width:none}
+  nav.tabs::-webkit-scrollbar{display:none}
+  nav.tabs button{padding:9px 15px;border-radius:8px;color:var(--muted);font-weight:550;white-space:nowrap;transition:color .15s,background .15s}
+  nav.tabs button.active{background:var(--accent-soft);color:var(--accent);font-weight:650;box-shadow:0 1px 3px rgba(47,107,255,.15)}
+  nav.tabs button:hover:not(.active){color:var(--text);background:var(--panel-2)}
+
+  .grid{display:grid;gap:15px}
+  .cards{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:17px 19px;box-shadow:var(--shadow);transition:transform .16s,box-shadow .16s}
+  .card:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(20,30,50,.06),0 14px 34px rgba(20,30,50,.09)}
+  .card .lbl{color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+  .card .val{font-size:26px;font-weight:720;margin-top:7px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .card .sub{margin-top:5px;font-size:13px;color:var(--muted)}
+  .card.hero{background:linear-gradient(135deg,var(--accent),#7a5bff);color:#fff;border:none}
+  .card.hero .lbl,.card.hero .sub{color:rgba(255,255,255,.85)}
+  .card.hero .val{font-size:34px}
+  .net-inline{margin-top:14px;padding-top:16px;border-top:1px solid var(--border);text-align:center}
+  .net-inline .lbl{color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+  .net-inline .val{font-size:30px;font-weight:720;margin-top:6px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;background:linear-gradient(135deg,var(--accent),#7a5bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .net-inline .sub{margin-top:6px;font-size:13px;color:var(--muted)}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  .chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600}
+  .chip.up{background:rgba(255,255,255,.2)} .chip.down{background:rgba(0,0,0,.15)}
+  .chip.g{background:var(--green-soft);color:var(--green)} .chip.r{background:var(--red-soft);color:var(--red)}
+
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-top:15px}
+  .panel-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 19px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .panel-h h2{font-size:16px}
+  .panel-b{padding:16px 19px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:9px 11px;text-align:right;font-size:14px;border-bottom:1px solid var(--border)}
+  td{font-variant-numeric:tabular-nums}
+  th:first-child,td:first-child{text-align:left;font-variant-numeric:normal}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+  tbody tr{transition:background .12s} tbody tr:hover{background:var(--panel-2)}
+  tr.group-row td{font-weight:700;background:var(--panel-2);font-size:13px;text-transform:uppercase;letter-spacing:.02em;border-top:2px solid var(--border)}
+  tr.cap-group,tr.cap-cat,tr.cap-sub{cursor:pointer}
+  tr.cap-group:hover td,tr.cap-cat:hover td,tr.cap-sub:hover td{background:var(--accent-soft)}
+  .caret{display:inline-block;width:15px;color:var(--muted);font-size:11px}
+  .asset-link{cursor:pointer;border-bottom:1px dashed var(--border)} .asset-link:hover{color:var(--accent);border-bottom-color:var(--accent)}
+  tr.sub-row td:first-child{padding-left:24px}
+  tr.cat-row td{font-weight:650;background:var(--panel-2)}
+  tr.cat-row td:first-child{padding-left:22px}
+  tr.item-row td:first-child{padding-left:40px}
+  tr.sub2-row td{font-weight:600}
+  tr.sub2-row td:first-child{padding-left:40px}
+  tr.item2-row td:first-child{padding-left:58px}
+  tr.total-row td{font-weight:750;border-top:2px solid var(--border);font-size:15px}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:middle}
+  .tag{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;font-weight:600}
+  .tag.asset{background:var(--green-soft);color:var(--green)}
+  .tag.passive{background:rgba(201,138,0,.14);color:var(--amber)}
+  .tag.liability{background:var(--red-soft);color:var(--red)}
+  .tag.reserve{background:var(--accent-soft);color:#5c7cfa}
+  .tag.activity{background:rgba(214,64,159,.14);color:#d6409f}
+
+  .btn{padding:9px 15px;border-radius:10px;font-weight:600;font-size:14px;background:var(--accent);color:#fff;display:inline-flex;align-items:center;gap:6px;transition:filter .15s,border-color .15s,color .15s,transform .1s}
+  .btn:hover{filter:brightness(1.07)} .btn:active{transform:translateY(1px)} .btn.ghost{background:var(--panel);color:var(--text);border:1px solid var(--border)}
+  .btn.ghost:hover{border-color:var(--accent);color:var(--accent)} .btn.sm{padding:6px 11px;font-size:13px} .btn.danger{background:var(--red)}
+  .inp{padding:8px 10px;border-radius:9px;border:1px solid var(--border);background:var(--panel-2);width:100%;transition:border-color .15s,box-shadow .15s,background .15s}
+  .inp:focus{outline:none;border-color:var(--accent);background:var(--panel);box-shadow:0 0 0 3px var(--accent-soft)}
+  input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+  .field label{font-size:12.5px;color:var(--muted);font-weight:600}
+  .month-nav{display:inline-flex;align-items:center;gap:2px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:3px}
+  .month-nav button{padding:6px 11px;border-radius:7px;color:var(--muted);font-weight:700}
+  .month-nav button:hover{color:var(--text);background:var(--panel)} .month-nav .cur{font-weight:650;padding:0 10px;min-width:92px;text-align:center;font-size:14px}
+  .muted{color:var(--muted)} .hint{font-size:12.5px;color:var(--muted)} .scroll-x{overflow-x:auto}
+  .toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  .legend{display:flex;flex-wrap:wrap;gap:13px;margin-top:12px} .legend .item{display:flex;align-items:center;gap:6px;font-size:13px}
+  .bar{height:10px;border-radius:6px;background:var(--panel-2);display:flex;overflow:hidden;margin:8px 0}
+  .two-col{display:grid;grid-template-columns:1.5fr 1fr;gap:15px} @media(max-width:840px){.two-col{grid-template-columns:1fr}}
+  .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px} @media(max-width:720px){.three-col{grid-template-columns:1fr}}
+  svg .gl{stroke:var(--border);stroke-width:1} svg text{fill:var(--muted);font-size:11px;font-family:var(--font)}
+  .modal-bg{position:fixed;inset:0;background:rgba(10,15,30,.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);width:100%;max-width:460px;max-height:90vh;overflow:auto}
+  .modal-h{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+  .modal-b{padding:19px} .modal-f{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:9px}
+  .x{font-size:22px;color:var(--muted);padding:2px 6px;border-radius:6px} .x:hover{background:var(--panel-2)}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:11px 20px;border-radius:10px;font-weight:600;font-size:14px;box-shadow:var(--shadow);z-index:99;opacity:0;transition:.2s}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+  .empty{text-align:center;padding:44px 20px;color:var(--muted)} .empty .big{font-size:38px;margin-bottom:10px}
+  .link-btn{color:var(--accent);font-weight:600;font-size:13px} .link-btn.del{color:var(--red)}
+  .seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .pill{padding:5px 11px;border-radius:20px;border:1px solid var(--border);font-size:12.5px;color:var(--muted);font-weight:600}
+  .pill.on{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="logo">₿</div>
+    <div class="title-block"><h1>Финансовый трекер</h1><p id="subtitle">Активы · Пассивы · Обязательства</p></div>
+    <div class="month-nav" id="monthNav" style="display:none"></div>
+    <div class="sp"></div>
+    <div class="cur-toggle" id="curToggle"></div>
+    <button class="icon-btn" id="hzBtn" onclick="toggleHideZero()" title="Скрыть/показать нулевые балансы"></button>
+    <button class="icon-btn" id="eyeBtn" onclick="toggleHideAmt()" title="Скрыть суммы (чувствительный режим)"></button>
+    <button class="icon-btn" id="themeBtn">◐</button>
+    <input type="file" id="imp" accept=".json" style="display:none" onchange="importJSON(event)">
+  </header>
+  <nav class="tabs" id="tabs"></nav>
+  <div id="repayAlerts"></div>
+  <div id="view"></div>
+</div>
+<div id="modal-root"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= Финансовый трекер v2 ================= */
+const LS='fintracker_v2';
+/* ===== Telegram Mini App integration ===== */
+const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+const IN_TG = !!(TG && TG.platform && TG.platform!=='unknown'); // реальный запуск внутри Telegram
+const CLOUD = !!(IN_TG && TG.CloudStorage && typeof TG.CloudStorage.setItem==='function');
+function csGet(key){return new Promise(r=>{try{TG.CloudStorage.getItem(key,(e,v)=>r(e?null:v));}catch(_){r(null);}});}
+function csGetItems(keys){return new Promise(r=>{try{TG.CloudStorage.getItems(keys,(e,v)=>r(e?{}:(v||{})));}catch(_){r({});}});}
+function csSet(key,val){return new Promise(r=>{try{TG.CloudStorage.setItem(key,val,(e,ok)=>r(!e&&ok));}catch(_){r(false);}});}
+function csRemove(keys){return new Promise(r=>{try{TG.CloudStorage.removeItems(keys,()=>r());}catch(_){r();}});}
+function b64enc(s){return btoa(unescape(encodeURIComponent(s)));}
+function b64dec(s){return decodeURIComponent(escape(atob(s)));}
+let pushT, cloudBusy=false, pushPending=false;
+function scheduleCloudPush(){ if(!CLOUD)return; clearTimeout(pushT); pushT=setTimeout(cloudPush,1500); }
+async function cloudPush(){
+  if(!CLOUD)return;
+  if(cloudBusy){ pushPending=true; return; } // уже идёт отправка — не теряем правку, отправим повторно сразу после
+  cloudBusy=true;
+  try{
+    const b64=b64enc(JSON.stringify(S)); const CH=3800; const n=Math.max(1,Math.ceil(b64.length/CH));
+    let oldN=0; const om=await csGet('ft_meta'); if(om){try{oldN=JSON.parse(om).n||0;}catch(_){}}
+    for(let i=0;i<n;i++){ await csSet('ft_'+i, b64.slice(i*CH,(i+1)*CH)); }
+    if(oldN>n){const rm=[];for(let i=n;i<oldN;i++)rm.push('ft_'+i);await csRemove(rm);}
+    await csSet('ft_meta', JSON.stringify({n:n,t:nowTs(),v:2}));
+    lastCloudSyncTs=nowTs();
+    setSync('☁ '+syncAgoLabel());
+  }catch(e){ setSync('☁ ошибка синка'); }
+  cloudBusy=false;
+  if(pushPending){ pushPending=false; scheduleCloudPush(); }
+}
+async function cloudPull(){
+  if(!CLOUD)return null;
+  const meta=await csGet('ft_meta'); if(!meta)return null;
+  let m; try{m=JSON.parse(meta);}catch(_){return null;} if(!m||!m.n)return null;
+  if(m.t)lastCloudSyncTs=m.t; // последняя точка синка из облака (до нашего первого пуша в этой сессии)
+  const keys=[];for(let i=0;i<m.n;i++)keys.push('ft_'+i);
+  const items=await csGetItems(keys);
+  let b64='';for(let i=0;i<m.n;i++){ b64+=(items['ft_'+i]||''); }
+  try{ return JSON.parse(b64dec(b64)); }catch(_){ return null; }
+}
+function nowTs(){try{return Date.now();}catch(_){return 0;}}
+function setSync(txt){const el=document.getElementById('syncStatus');if(el)el.textContent=txt;}
+let lastCloudSyncTs=0; // когда последний раз реально успешно записали в облако (своё или с прошлой загрузки)
+function syncAgoLabel(){if(!lastCloudSyncTs)return'ещё не синхронизировано';const s=Math.max(0,Math.round((nowTs()-lastCloudSyncTs)/1000));
+  if(s<5)return'синхронизировано только что';if(s<60)return`синхр. ${s} сек. назад`;const m=Math.round(s/60);if(m<60)return`синхр. ${m} мин. назад`;return`синхр. ${Math.round(m/60)} ч. назад`;}
+// исходный статус синка для отрисовки Настроек (setSync потом может перезаписать текст живым статусом,
+// но сам элемент теперь пересоздаётся при каждом render() — нужно значение сразу, а не только через setSync)
+function syncStatusText(){
+  if(CLOUD)return '☁ Telegram Cloud · '+syncAgoLabel();
+  if(fileHandle)return (fileOK?'💾 файл «'+fileHandle.name+'»':'💾 файл «'+fileHandle.name+'» — нажми 🔗 для доступа');
+  return '';
+}
+function tickSyncStatus(){if(CLOUD&&tab==='settings')setSync(syncStatusText());}
+async function clearCloudData(){
+  if(!CLOUD)return;
+  const meta=await csGet('ft_meta');let n=0;if(meta){try{n=JSON.parse(meta).n||0;}catch(_){}}
+  const keys=['ft_meta'];for(let i=0;i<Math.max(n,20);i++)keys.push('ft_'+i); // с запасом, если счётчик разошёлся
+  await csRemove(keys);
+  lastCloudSyncTs=0;setSync('☁ облако очищено');toast('Данные в облаке Telegram удалены (локально остались)');
+}
+function clearCloudConfirm(){confirmModal('Очистить облако Telegram?','Удалит сохранённую копию в CloudStorage этого бота. Локальные данные в этом устройстве не трогает — после следующей правки запишется заново (если не отключишь синк).',clearCloudData);}
+function applyTgTheme(){ if(!TG)return; try{ const cs=TG.colorScheme; if(cs)document.documentElement.setAttribute('data-theme',cs);
+  if(TG.setHeaderColor)TG.setHeaderColor('secondary_bg_color'); if(TG.setBackgroundColor)TG.setBackgroundColor('bg_color'); }catch(_){} }
+// отступ под СОБСТВЕННЫЙ чат-бар Telegram (Закрыть/▾/•••) — это НЕ вырез телефона (env(safe-area-inset-top) его не знает),
+// а своя полоса поверх страницы; Telegram начиная с Bot API 8.0 сообщает её высоту через contentSafeAreaInset/safeAreaInset.
+function applyTgSafeArea(){ if(!TG)return; try{
+    const c=TG.contentSafeAreaInset||{}, s=TG.safeAreaInset||{};
+    const top=Math.max(+c.top||0,+s.top||0), bottom=Math.max(+c.bottom||0,+s.bottom||0);
+    document.documentElement.style.setProperty('--tg-top',top+'px');
+    document.documentElement.style.setProperty('--tg-bottom',bottom+'px');
+  }catch(_){} }
+async function initApp(){
+  initTheme();
+  if(IN_TG){ try{ TG.ready(); TG.expand();
+    // requestFullscreen (Bot API 8.0+) вместо просто expand(): в обычном «развёрнутом» (не fullscreen) режиме
+    // Telegram сам управляет свайпом вниз как жестом «подвинуть/свернуть лист» — это их родной UX подвижного
+    // bottom-sheet, и disableVerticalSwipes его не всегда полностью гасит (особенно когда палец начинает жест
+    // над уже проскроленным до упора списком). В настоящем fullscreen режиме такого подвижного листа нет вообще.
+    TG.requestFullscreen&&TG.requestFullscreen();
+    applyTgTheme(); applyTgSafeArea();
+    TG.disableVerticalSwipes&&TG.disableVerticalSwipes(); // доп. слой — гасит свайп-закрытие/сворачивание там, где fullscreen недоступен (старый клиент)
+    TG.enableClosingConfirmation&&TG.enableClosingConfirmation(); // подстраховка: даже если свайп всё же дойдёт до закрытия — спросит подтверждение, а не закроет молча (старее API, шире поддержка клиентов)
+    TG.onEvent&&TG.onEvent('themeChanged',applyTgTheme);
+    TG.onEvent&&TG.onEvent('safeAreaChanged',applyTgSafeArea);
+    TG.onEvent&&TG.onEvent('contentSafeAreaChanged',applyTgSafeArea);
+    TG.onEvent&&TG.onEvent('viewportChanged',applyTgSafeArea);
+    TG.onEvent&&TG.onEvent('fullscreenChanged',applyTgSafeArea);
+    TG.onEvent&&TG.onEvent('fullscreenFailed',()=>{ try{TG.disableVerticalSwipes&&TG.disableVerticalSwipes();}catch(_){} }); // клиент не поддерживает fullscreen — остаёмся на старой защите
+  }catch(_){} }
+  render();
+  if(!CLOUD)restoreFileHandle();
+  autoFetchRates();
+  try{if(nowTs()-(S.cryptoPxUpdated||0)>2*3600*1000)fetchCryptoPrices({silent:true});}catch(e){}
+  try{const lm=latestMonth();if(lm)ensureMonthCryptoPx(lm,{silent:true});}catch(e){}
+  if(CLOUD){
+    setSync('☁ загрузка…');
+    const cloud=await cloudPull();
+    cloudPullDone=true;
+    if(pendingLocalEdit){ if(S.items&&S.items.length)scheduleCloudPush(); setSync('☁ локальные правки сохранены'); } // правка сделана до завершения загрузки — не затираем её пришедшим снапшотом
+    else if(cloud && cloud.items){ S=cloud; ['categories','fundAccounts','items'].forEach(k=>S[k]=S[k]||[]); S.months=S.months||{}; if(!S.fx)S.fx=Object.assign({},DEFAULT_FX); display=S.display||'USD'; _monthListCache=null; curMonth=latestMonth()||thisMonth(); try{localStorage.setItem(LS,JSON.stringify(S));}catch(_){} render(); setSync('☁ '+syncAgoLabel()); }
+    else { if(S.items&&S.items.length){ scheduleCloudPush(); } else { setSync('☁ пусто — импортируйте бэкап'); } }
+    setInterval(()=>{ if(!cloudBusy)cloudPush(); },30000); // подстраховка раз в 30с — на случай если дебаунс пропал (свёрнутая вкладка и т.п.)
+    setInterval(tickSyncStatus,5000); // живой «синхр. N сек/мин назад» на вкладке Настройки
+  }
+}
+const GROUPS={asset:'Инвестиции',activity:'Текущая деятельность',reserve:'Свободные средства',passive:'Пассивы (имущество)',liability:'Обязательства'};
+const GROUP_COLOR={asset:'var(--asset)',activity:'#d6409f',reserve:'#5c7cfa',passive:'var(--passive)',liability:'var(--liab)'};
+const GROUP_ORDER=['asset','activity','reserve','passive','liability'];
+// реестр карточек дашборда: id (ключ видимости в S.dashCards) + подпись для модалки настройки
+const DASH_CARDS=[
+  ['g_asset','● Инвестиции (группа)'],['g_activity','● Текущая деятельность'],['g_reserve','● Свободные средства'],
+  ['g_passive','● Пассивы'],['g_liability','● Обязательства'],
+  ['income','Доход за месяц'],['expense','Расход за месяц'],['cashSurplus','Баланс дохода/расходов (нарастающим итогом)'],
+  ['passiveIncome','Пассивный доход / мес'],['activeIncome','Активный доход / мес'],['yieldAssets','Доходность активов'],
+  ['mtmUnrealized','Нереализованная прибыль (продать всё по текущей цене)'],
+  ['npInvest','НП инвестиции (реинвест-дисциплина)'],['realized','Реализованная прибыль'],['reinvestPct','Реинвест %'],
+];
+function dashCardOn(id){return !(S.dashCards&&S.dashCards[id]===false);}
+const CUR_SYMBOL={USD:'$',USDT:'₮',RUB:'₽',EUR:'€',GBP:'£',JPY:'¥',CNY:'CN¥',THB:'฿',VND:'₫',KZT:'₸',IDR:'Rp',TRY:'₺',AED:'AED',SGD:'S$',CHF:'CHF',AUD:'A$',CAD:'C$',INR:'₹',PLN:'zł',KRW:'₩'};
+const CURRENCIES=['USD','USDT','RUB','EUR','GBP','JPY','CNY','THB','VND','KZT','IDR','TRY','AED','SGD','CHF','AUD','CAD','INR','PLN','KRW'];
+const DEFAULT_FX={RUB:82,EUR:0.92,GBP:0.79,JPY:149,CNY:7.1,THB:35,VND:25000,KZT:480,IDR:16000,TRY:34,AED:3.67,SGD:1.34,CHF:0.88,AUD:1.52,CAD:1.36,INR:83.5,PLN:4.0,KRW:1350};
+// валюты, для которых показываем поле курса в Настройках / тянем автообновление (RUB — тоже сюда, у него ЕЩЁ и свой исторический курс за месяц, см. fxRate)
+const FX_FETCH_CURRENCIES=Object.keys(DEFAULT_FX);
+const COINGECKO={BTC:'bitcoin',ETH:'ethereum',BNB:'binancecoin',TRX:'tron',TON:'the-open-network',SOL:'solana',USDT:'tether',ADA:'cardano',XRP:'ripple',DOGE:'dogecoin'};
+const COIN_SYMBOLS=Object.keys(COINGECKO);
+const PALETTE=['#2f6bff','#12a150','#c98a00','#8a5bff','#e5484d','#0ea5b7','#e06c00','#d6409f','#2bb673','#5c7cfa','#b5892a','#16a5a5'];
+
+function blank(){return{version:2,baseCurrency:'USD',display:'USD',fx:Object.assign({},DEFAULT_FX),categories:[],fundAccounts:[],items:[],months:{}};}
+let S=load();
+let display=S.display||'USD';
+let hideAmt=true;try{const _h=localStorage.getItem('fintracker_hide');hideAmt=_h===null?true:_h==='1';}catch(e){} // по умолчанию скрыто, пока не покажешь явно (👁)
+let curMonth=latestMonth()||thisMonth();
+let tab='dash';
+
+function load(){try{const r=localStorage.getItem(LS);if(!r)return blank();const s=JSON.parse(r);['categories','fundAccounts','items'].forEach(k=>s[k]=s[k]||[]);s.months=s.months||{};if(!s.fx)s.fx=Object.assign({},DEFAULT_FX);else Object.keys(DEFAULT_FX).forEach(c=>{if(s.fx[c]==null)s.fx[c]=DEFAULT_FX[c];});return s;}catch(e){return blank();}}
+let cloudPullDone=false,pendingLocalEdit=false;
+function save(){if(CLOUD&&!cloudPullDone)pendingLocalEdit=true; // правка до завершения загрузки из облака — не дать cloudPull её затереть
+  try{S.display=display;localStorage.setItem(LS,JSON.stringify(S));}catch(e){/* localStorage может быть недоступен в TG */}if(CLOUD)scheduleCloudPush();scheduleFileWrite();_monthListCache=null;_renderT=null;}
+let _monthListCache=null;const _monthListCached=()=>{if(_monthListCache===null)_monthListCache=Object.keys(S.months).sort();return _monthListCache;};
+let _renderT=null;const scheduleRender=()=>{clearTimeout(_renderT);_renderT=setTimeout(render,150);};
+const originalMonthList=monthList;monthList=_monthListCached;
+// ---- Автосохранение в ФАЙЛ (File System Access API, Chrome/Edge) ----
+let fileHandle=null,fileWriteT=null,fileOK=false;
+function idbReq(mode,fn){return new Promise(res=>{try{const r=indexedDB.open('ft_fs',1);r.onupgradeneeded=()=>{try{r.result.createObjectStore('h');}catch(_){}};r.onsuccess=()=>{try{const st=r.result.transaction('h',mode).objectStore('h');const q=fn(st);q.onsuccess=()=>res(q.result);q.onerror=()=>res(null);}catch(e){res(null);}};r.onerror=()=>res(null);}catch(e){res(null);}});}
+const idbGet=k=>idbReq('readonly',st=>st.get(k));
+const idbSet=(k,v)=>idbReq('readwrite',st=>st.put(v,k));
+async function ensurePerm(h){try{if(!h.queryPermission)return true;const o={mode:'readwrite'};if(await h.queryPermission(o)==='granted')return true;if(await h.requestPermission(o)==='granted')return true;}catch(e){}return false;}
+async function writeFile(){if(!fileHandle||!fileOK)return;try{const w=await fileHandle.createWritable();await w.write(JSON.stringify(S));await w.close();setSync('💾 сохранено в файл');}catch(e){fileOK=false;setSync('⚠ файл недоступен');}}
+function scheduleFileWrite(){if(!fileHandle||!fileOK)return;clearTimeout(fileWriteT);fileWriteT=setTimeout(writeFile,700);}
+async function connectFile(){
+  if(!window.showSaveFilePicker){toast('Автозапись в файл работает только в Chrome/Edge (на компьютере). В других — жми «Бэкап».');return;}
+  if(fileHandle){fileMenu();return;} // уже подключён → меню (возобновить / сменить / отключить)
+  await pickNewFile();
+}
+// выбрать НОВЫЙ файл/место автосохранения
+async function pickNewFile(){
+  if(!window.showSaveFilePicker){toast('Только Chrome/Edge');return;}
+  try{
+    const h=await window.showSaveFilePicker({suggestedName:(fileHandle&&fileHandle.name)||'fintracker.json',types:[{description:'JSON',accept:{'application/json':['.json']}}]});
+    fileHandle=h;fileOK=true;await idbSet('handle',h);await writeFile();toast('Автосохранение в файл: '+h.name);
+  }catch(e){if(e&&e.name!=='AbortError')toast('Не удалось: '+(e.message||e));}
+  render();
+}
+// возобновить запись в текущий файл (после перезагрузки нужен клик для доступа)
+async function resumeFile(){
+  if(!fileHandle){await pickNewFile();return;}
+  if(await ensurePerm(fileHandle)){fileOK=true;await writeFile();toast('Автосохранение возобновлено: '+fileHandle.name);}
+  else toast('Доступ к файлу не выдан');
+  render();
+}
+// отключить автосохранение (файл на диске остаётся как есть)
+async function disconnectFile(){
+  fileHandle=null;fileOK=false;clearTimeout(fileWriteT);try{await idbSet('handle',null);}catch(e){}
+  setSync('');toast('Автосохранение отключено');render();
+}
+function fileMenu(){
+  const r=document.getElementById('modal-root');if(!r)return;
+  r.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="modal-h"><h3>Автосохранение в файл</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b"><div class="muted" style="margin-bottom:14px">Сейчас пишется в: <b style="color:var(--text)">${esc(fileHandle.name)}</b></div><div style="display:flex;flex-direction:column;gap:8px"><button class="btn" onclick="closeModal();resumeFile()">▶ Возобновить запись сюда</button><button class="btn ghost" onclick="closeModal();pickNewFile()">📁 Выбрать другой файл / место…</button><button class="btn danger" onclick="closeModal();disconnectFile()">✕ Отключить автосохранение</button></div><div class="hint" style="margin-top:12px">«Выбрать другой файл» — создай или укажи новый .json в нужной папке; дальше всё пишется туда.</div></div></div></div>`;
+}
+async function restoreFileHandle(){try{const h=await idbGet('handle');if(h){fileHandle=h;setSync('💾 файл «'+h.name+'» — нажми 🔗 для доступа');}}catch(e){}}
+function uid(p){return (p||'i')+Math.random().toString(36).slice(2,8);}
+
+/* ---- months ---- */
+function pad(n){return String(n).padStart(2,'0');}
+function thisMonth(){const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1);}
+function monthList(){return Object.keys(S.months).sort();}
+function latestMonth(){const m=monthList();return m.length?m[m.length-1]:null;}
+function shiftMonth(k,d){const[y,m]=k.split('-').map(Number);const dt=new Date(y,m-1+d,1);return dt.getFullYear()+'-'+pad(dt.getMonth()+1);}
+function prevExist(k){const m=monthList().filter(x=>x<k);return m.length?m[m.length-1]:null;}
+const MN=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+function mLabel(k){const[y,m]=k.split('-');return MN[+m-1]+' '+y;}
+
+/* ---- currency ---- */
+// units of `cur` per 1 USD, for month k. USD/USDT=1. RUB — исторический курс за месяц; прочие — глобальный S.fx.
+function fxRate(cur,k){
+  if(cur==='USD'||cur==='USDT'||!cur)return 1;
+  if(cur==='RUB'){const mk=S.months[k];if(mk&&mk.rate)return +mk.rate; // свой курс месяца (история фиксирована)
+    const lm=latestMonth();if((!lm||k>=lm)&&S.fx&&S.fx.RUB!=null&&S.fx.RUB!=='')return +S.fx.RUB; // текущий/будущий месяц без своего курса → живой распарсенный
+    const ks=monthList().filter(x=>x<=k).reverse();for(const x of ks){if(S.months[x].rate)return +S.months[x].rate;}
+    for(const x of monthList()){if(S.months[x].rate)return +S.months[x].rate;}}
+  const m=S.months[k];if(m&&m.fx&&m.fx[cur]!=null&&m.fx[cur]!=='')return +m.fx[cur]; // свой курс месяца зафиксирован
+  const lm2=latestMonth();if((!lm2||k>=lm2)&&S.fx&&S.fx[cur]!=null&&S.fx[cur]!=='')return +S.fx[cur]; // живой курс только для текущего/будущего месяца
+  const ks2=monthList().filter(x=>x<=k).reverse();for(const x of ks2){const mm=S.months[x];if(mm.fx&&mm.fx[cur]!=null&&mm.fx[cur]!=='')return +mm.fx[cur];}
+  for(const x of monthList()){const mm=S.months[x];if(mm.fx&&mm.fx[cur]!=null&&mm.fx[cur]!=='')return +mm.fx[cur];}
+  return DEFAULT_FX[cur]||(cur==='RUB'?82:1);
+}
+function rateOf(k){return fxRate('RUB',k);}
+// value in its currency -> base USD (итог всегда в долларах)
+function toUSD(v,cur,k){if(v==null||v==='')return 0;const r=fxRate(cur,k);return (+v)/(r||1);}
+// base USD -> display currency
+function disp(usd,k){return display==='USD'?usd:usd*fxRate(display,k);}
+function fmt(usd,k,opts){const sym=CUR_SYMBOL[display];if(hideAmt)return '••••• '+sym;k=k||curMonth;let v=disp(usd,k);const neg=v<0;v=Math.abs(v);
+  let s=display==='RUB'?Math.round(v).toLocaleString('ru-RU'):Math.round(v).toLocaleString('ru-RU');
+  return (neg?'−':'')+s+' '+sym;}
+function fmtShort(usd,k){if(hideAmt)return '•••'+CUR_SYMBOL[display];let v=disp(usd,k||curMonth);const neg=v<0;v=Math.abs(v);let s;
+  if(v>=1e9)s=(v/1e9).toFixed(1)+'B';else if(v>=1e6)s=(v/1e6).toFixed(2)+'M';else if(v>=1e3)s=(v/1e3).toFixed(0)+'k';else s=Math.round(v);
+  return (neg?'−':'')+s+CUR_SYMBOL[display];}
+function pct(x){if(x==null||!isFinite(x))return'—';return(x<0?'−':'+')+(Math.abs(x)*100).toFixed(1)+'%';}
+function sign(n){return n>0?'pos':n<0?'neg':'';}
+
+/* ---- data access ---- */
+function mo(k){if(!S.months[k])S.months[k]={rate:0,values:{},income:{},funds:{},cashflow:{income:0,expense:0}};const m=S.months[k];m.values=m.values||{};m.income=m.income||{};m.funds=m.funds||{};m.dep=m.dep||{};m.wd=m.wd||{};m.qty=m.qty||{};m.qtyFromMoves=m.qtyFromMoves||{};m.px=m.px||{};m.buyq=m.buyq||{};m.buypx=m.buypx||{};m.sellq=m.sellq||{};m.sellpx=m.sellpx||{};m.incomeTo=m.incomeTo||{};m.incomeCur=m.incomeCur||{};m.incomeExpr=m.incomeExpr||{};m.reinvest=m.reinvest||{};m.valuesCur=m.valuesCur||{};m.valuesExpr=m.valuesExpr||{};m.qtyExpr=m.qtyExpr||{};m.moves=m.moves||[];m.cashflow=m.cashflow||{income:0,expense:0};return m;}
+// парсер выражения: «100+200*3-50/2» → число (сложение/вычитание/умножение/деление, приоритет × ÷)
+function parseExpr(str){if(str==null)return null;str=(''+str).replace(/\s/g,'').replace(/,/g,'.');if(str==='')return null;let sum=0,any=false,allOk=true;
+  for(let t of str.split(/(?=[+-])/)){if(t==='')continue;const sign=t[0]==='-'?-1:1;const body=t.replace(/^[+-]/,'');if(body==='')continue;
+    const f=body.split(/(?=[*/])/);let prod=parseFloat(f[0]),ok=isFinite(prod);
+    for(let i=1;i<f.length&&ok;i++){const op=f[i][0];const n=parseFloat(f[i].slice(1));if(!isFinite(n)){ok=false;break;}op==='*'?prod*=n:(prod/=n,prod=isFinite(prod)?prod:null,ok=prod!=null);}
+    if(ok){sum+=sign*prod;any=true;}else{allOk=false;}}
+  return (any&&allOk)?sum:null;}
+/* ---- двойная запись: счета, назначение дохода, переводы, сверка по счёту ---- */
+function accountItems(){return S.items.filter(i=>i.group==='reserve');}
+function spendingAccount(){return S.items.find(i=>i.group==='reserve'&&i.spending)||accountItems()[0]||null;}
+function itemCur(id){const it=S.items.find(x=>x.id===id);return it?it.currency:'USD';}
+function movesOf(k){const m=S.months[k];return (m&&m.moves)?m.moves:[];}
+// спец-контрагент «Личные деньги» (внешний, тратный мир). «Непогашенный ущерб» убран — заменён нереализованной прибылью.
+const PERSONAL='__personal__';
+const SPECIAL_ENDPOINTS=[[PERSONAL,'💼 Личные деньги']];
+function endpointName(id){if(id===PERSONAL)return 'Личные деньги';const it=S.items.find(x=>x.id===id);return it?it.name:'—';}
+// тип счёта: тратный (item.spending) vs накопительный (reserve без spending). Тратный мир = личные деньги + тратные счета; всё остальное = инвест-мир.
+function isSpendAccount(id){const it=S.items.find(x=>x.id===id);return !!(it&&it.group==='reserve'&&it.spending);}
+function isSpendSide(id){return id===PERSONAL||isSpendAccount(id);}
+// расчётный результат продажи/вывода актива: сумма − цена покупки (плюс = прибыль, минус = убыток)
+function movePnlAuto(mv){if(!mv||!mv.amt)return 0;const it=S.items.find(x=>x.id===mv.from);if(!it)return 0;const toItem=S.items.find(x=>x.id===mv.to);const toIsExit=(mv.to===PERSONAL||(toItem&&toItem.group==='reserve'));if(!toIsExit)return 0;if(it.group!=='asset'&&it.group!=='passive')return 0;if(it.cost==null||it.cost==='')return 0;return (+mv.amt)-(+it.cost);}
+function movePnl(mv){return (mv&&mv.usherb!=null&&mv.usherb!=='')?+mv.usherb:movePnlAuto(mv);}
+// НЕРЕАЛИЗОВАННАЯ (НП) + РЕАЛИЗОВАННАЯ прибыль — только при движениях/фиксации (не от роста цены). НП = капитал+прибыль, оставшиеся в инвест-мире; realized = прибыль, выведенная на траты.
+function clampPct(v){v=+v;if(!isFinite(v))return 0;return Math.max(0,Math.min(100,v));}
+// ЦЕЛЕВОЙ % реинвеста строки (план): по строке m.reinvest[id] либо общий S.reinvestTarget
+function incomeReinvest(id,k){const m=S.months[k];const p=(m&&m.reinvest&&m.reinvest[id]!=null&&m.reinvest[id]!=='')?m.reinvest[id]:(S.reinvestTarget!=null?S.reinvestTarget:0);return clampPct(p)/100;}
+// НП = реинвестировано − обязательство отложить (цель%). Доход: +фактически на накопит.счёт, −цель%×доход (должен был отложить). Минус гасится переводом тратный→накопит.
+function npState(){let unreal=0,real=0;const gr=clampPct(S.reinvestTarget!=null?S.reinvestTarget:0)/100;monthList().forEach(k=>{const m=S.months[k];
+    S.items.forEach(i=>{const inc=monthIncomeUSD(i.id,k);if(inc){const acc=m.incomeTo&&m.incomeTo[i.id];if(acc&&!isSpendAccount(acc))unreal+=inc;unreal-=inc*incomeReinvest(i.id,k);}}); // +реинвест (накопит), −обязательство (цель%)
+    (m.extra||[]).forEach(e=>{const amt=e.amount?toUSD(+e.amount,e.cur||'USD',k):0;if(amt){if(e.to&&!isSpendAccount(e.to))unreal+=amt;unreal-=amt*gr;}}); // прочие доходы — так же (цель по общему %)
+    movesOf(k).forEach(mv=>{const amt=mv.amt?+mv.amt:0;const pnl=movePnl(mv);
+      if(pnl!==0){ if(isSpendSide(mv.to)){unreal-=(amt-pnl);real+=pnl;} else {unreal+=pnl;} } // продажа: на траты — вывел капитал (−C), прибыль реализована; на инвест — прибыль осталась (+pnl)
+      else if(amt){ const fs=isSpendSide(mv.from),ts=isSpendSide(mv.to); if(!fs&&ts)unreal-=amt; else if(fs&&!ts)unreal+=amt; } // перевод через границу инвест/траты
+    });});
+  return {unreal,real};}
+function unrealizedProfitUSD(){return npState().unreal;}
+function realizedProfitUSD(){return npState().real;}
+// инвестиционная НП: всё, КРОМЕ пассивов (passive — машины/имущество, туда реинвест-дисциплина не применима).
+// Переводы накопительный↔тратный считаются независимо от группы (USDT→тратный столь же «реализация», как продажа актива).
+function investmentNpState(uptoK){let unreal=0,real=0;const gr=clampPct(S.reinvestTarget!=null?S.reinvestTarget:0)/100;monthList().filter(x=>!uptoK||x<=uptoK).forEach(k=>{const m=S.months[k];
+    S.items.filter(i=>i.group!=='passive').forEach(i=>{const inc=monthIncomeUSD(i.id,k);if(inc){const acc=m.incomeTo&&m.incomeTo[i.id];if(acc&&!isSpendAccount(acc)&&!isSpendSide(acc))unreal+=inc;unreal-=inc*incomeReinvest(i.id,k);}});
+    movesOf(k).forEach(mv=>{const fromIt=S.items.find(x=>x.id===mv.from),toIt=S.items.find(x=>x.id===mv.to);
+      if((fromIt&&fromIt.group==='passive')||(toIt&&toIt.group==='passive'))return; // пассивы (машины/имущество) не считаются
+      const amt=mv.amt?+mv.amt:0,pnl=movePnl(mv);
+      if(pnl!==0){if(isSpendSide(mv.to)){unreal-=(amt-pnl);real+=pnl;}else{unreal+=pnl;}}
+      else if(amt){const fs=isSpendSide(mv.from),ts=isSpendSide(mv.to);if(!fs&&ts)unreal-=amt;else if(fs&&!ts)unreal+=amt;}
+    });});
+  return {unreal,real};}
+// фактический реинвест за месяц: доход на накопит.счета / весь доход
+function reinvestPct(k){const m=S.months[k];if(!m)return null;let inv=0,tot=0;S.items.forEach(i=>{const inc=monthIncomeUSD(i.id,k);if(inc){tot+=inc;const acc=m.incomeTo&&m.incomeTo[i.id];if(acc&&!isSpendAccount(acc))inv+=inc;}});(m.extra||[]).forEach(e=>{const amt=e.amount?toUSD(+e.amount,e.cur||'USD',k):0;if(amt){tot+=amt;if(e.to&&!isSpendAccount(e.to))inv+=amt;}});return tot>0?inv/tot:null;}
+function targetReinvestPct(k){const m=S.months[k];if(!m)return null;let plan=0,tot=0;const gr=clampPct(S.reinvestTarget!=null?S.reinvestTarget:0)/100;S.items.forEach(i=>{const inc=monthIncomeUSD(i.id,k);if(inc){tot+=inc;plan+=inc*incomeReinvest(i.id,k);}});(m.extra||[]).forEach(e=>{const amt=e.amount?toUSD(+e.amount,e.cur||'USD',k):0;if(amt){tot+=amt;plan+=amt*gr;}});return tot>0?plan/tot:gr;}
+function setIncomeReinvest(id,pct){const m=mo(curMonth);m.reinvest=m.reinvest||{};m.reinvest[id]=(pct===''||pct==null)?'':clampPct(pct);save();}
+// сколько доходов за месяц без выбранного счёта (обязательно выбрать)
+function incomeNoAccount(k){const m=S.months[k];if(!m)return 0;let n=0;S.items.forEach(i=>{if(Math.abs(monthIncomeUSD(i.id,k))>0.01&&!(m.incomeTo&&m.incomeTo[i.id]))n++;});(m.extra||[]).forEach(e=>{const amt=e.amount?toUSD(+e.amount,e.cur||'USD',k):0;if(Math.abs(amt)>0.01&&!e.to)n++;});return n;}
+function setIncomeTo(id,acc){mo(curMonth).incomeTo[id]=acc||'';save();render();}
+function addMove(){mo(curMonth).moves.push({date:curMonth+'-01',from:'',to:'',amt:null});save();render();}
+function setMove(idx,f,v){const mv=mo(curMonth).moves[idx];if(!mv)return;if((f==='to'||f==='from')&&v==='__new__'){moveCreateTarget(idx,f);return;}
+  mv[f]=(f==='amt'||f==='usherb')?(v===''?null:+v):v;if(f==='from'||f==='to'||f==='date')afterMoveChange();save();if(f!=='amt'&&f!=='usherb')render();}
+// сумма транзакции вводится в выбранной валюте (можно выражением +/-), ХРАНИТСЯ в USD (по курсу месяца)
+function moveRate(mv,k){return (mv.rate!=null&&mv.rate!=='')?+mv.rate:fxRate(mv.cur||'USD',k);} // курс транзакции: свой (если задан) иначе курс месяца
+function setMoveAmt(idx,val){const mv=mo(curMonth).moves[idx];if(!mv)return;const num=parseExpr(val);if(num==null){mv.amt=null;mv.amtExpr='';}else{mv.amtExpr=(''+val);mv.amt=num/(moveRate(mv,curMonth)||1);}save();updTot();}
+function setMoveCur(idx,cur){const mv=mo(curMonth).moves[idx];if(!mv)return;mv.cur=cur;mv.rate=null;/* курс был для старой валюты — сбрасываем на курс месяца по умолчанию */save();render();}
+// свой курс транзакции (напр. реально обменял по другому курсу, чем в среднем за месяц); пусто — обратно курс месяца
+function setMoveRate(idx,val){const mv=mo(curMonth).moves[idx];if(!mv)return;mv.rate=(val===''||val==null)?null:+val;
+  if(mv.amtExpr){const num=parseExpr(mv.amtExpr);if(num!=null)mv.amt=num/(moveRate(mv,curMonth)||1);}
+  save();render();}
+// крипто-транзакция: количество × цена → сумма в USD. Количество холдинга пересчитывается из транзакций.
+function setMoveQP(idx,f,v){const mv=mo(curMonth).moves[idx];if(!mv)return;mv[f]=(v===''||v==null)?null:(f==='qty'?parseExpr(v):+v);const q=mv.qty!=null?+mv.qty:0,px=mv.px!=null?+mv.px:0;mv.amt=q*px;mv.cur='USD';afterMoveChange();save();}
+function afterMoveChange(){recomputeCryptoQtyAfter(curMonth);recomputeCryptoCost();updTot();}
+function recomputeCryptoQtyAfter(startK){const ks=monthList().filter(k=>k>=startK);ks.forEach(k=>recomputeCryptoQty(k));}
+function recomputeCryptoQty(k){const m=mo(k);S.items.forEach(it=>{if(!it.byQty)return;let buys=0,sells=0,has=false;movesOf(k).forEach(mv=>{if(mv.qty==null||mv.qty==='')return;if(mv.to===it.id){buys+=+mv.qty;has=true;}if(mv.from===it.id){sells+=+mv.qty;has=true;}});
+  if(has){const pv=prevExist(k);const base=pv!=null?(itemQty(it.id,pv)||0):0;m.qty[it.id]=base+buys-sells;if(m.qtyExpr)m.qtyExpr[it.id]='';m.qtyFromMoves[it.id]=true;}
+  else if(m.qtyFromMoves[it.id]){delete m.qty[it.id];delete m.qtyFromMoves[it.id];} // транзакции удалены — не оставлять фантомное количество, посчитанное по ним ранее
+});}
+// цена покупки (cost) крипты — СРЕДНЕВЗВЕШЕННАЯ: докупка усредняет, продажа списывает по средней. Хронологический пересчёт от базиса (импортированный cost + докупки).
+function recomputeCryptoCost(){S.items.forEach(it=>{if(!it.byQty)return;
+  let firstTx=null;monthList().forEach(k=>{if(firstTx)return;movesOf(k).forEach(mv=>{if(mv.qty&&(mv.to===it.id||mv.from===it.id))firstTx=firstTx||k;});});
+  if(!firstTx){ if(it.qtyBase!=null){it.cost=(it.costBase!=null?it.costBase:it.cost);delete it.qtyBase;delete it.costBase;delete it._firstTx;delete it._costSeed;} return; } // нет транзакций — вернуть базис
+  if(it.qtyBase==null||it._firstTx!==firstTx){const pv=prevExist(firstTx);it.qtyBase=(pv!=null?itemQty(it.id,pv):null)||0;
+    if(it._costSeed==null)it._costSeed=(it.cost!=null&&it.cost!=='')?+it.cost:0; // базовая себестоимость фиксируется ОДИН раз (до первой транзакции) — иначе повторный пересчёт возьмёт уже посчитанное it.cost и удвоит суммы
+    it.costBase=it.qtyBase>0?it._costSeed:0;it._firstTx=firstTx;}
+  let qty=it.qtyBase,cost=it.costBase;
+  monthList().forEach(k=>{const mvs=movesOf(k).filter(mv=>mv.qty&&(mv.to===it.id||mv.from===it.id)).slice().sort((a,b)=>((a.date||'99')>(b.date||'99')?1:-1));
+    mvs.forEach(mv=>{const Q=+mv.qty,P=(mv.px!=null&&mv.px!=='')?+mv.px:0;if(mv.to===it.id){qty+=Q;cost+=Q*P;}else{if(qty>0)cost-=Q*(cost/qty);qty-=Q;}});});
+  it.cost=Math.round(Math.max(0,cost));});}
+function delMove(idx){const a=mo(curMonth).moves;if(idx>=0&&idx<a.length){a.splice(idx,1);afterMoveChange();save();render();}}
+function moveCreateTarget(idx,field){field=field||'to';modal('Новая позиция',`
+   <div class="field"><label>Название</label><input class="inp" id="qcn" placeholder="Напр. Машина 6, новый актив"></div>
+   <div class="field"><label>Группа</label><select class="inp" id="qcg">${Object.entries(GROUPS).map(([kk,v])=>`<option value="${kk}" ${kk==='asset'?'selected':''}>${v}</option>`).join('')}</select></div>
+   <div class="field"><label>Категория</label><input class="inp" id="qcc" list="qclist" placeholder="категория"><datalist id="qclist">${[...new Set(S.categories.map(c=>c.name))].map(n=>`<option>${esc(n)}</option>`).join('')}</datalist></div>`,()=>{
+   const name=document.getElementById('qcn').value.trim();if(!name){toast('Введите название');return false;}
+   const grp=document.getElementById('qcg').value; let cat=document.getElementById('qcc').value.trim()||'Прочее';
+   if(!S.categories.some(c=>c.name===cat))S.categories.push({name:cat,group:grp,color:PALETTE[S.categories.length%PALETTE.length]});
+   const nid=uid();S.items.push({id:nid,name,group:grp,category:cat,currency:'USD',income:{mode:'variable'},createdAt:curMonth});
+   const mv=mo(curMonth).moves[idx];if(mv)mv[field]=nid;save();render();toast('Позиция создана');});}
+// приток на счёт (USD): доход, зачисленный сюда + переводы сюда − переводы отсюда
+function accountInflowUSD(accId,k){const m=S.months[k];if(!m)return 0;let s=0;
+  S.items.forEach(i=>{if(m.incomeTo&&m.incomeTo[i.id]===accId)s+=monthIncomeUSD(i.id,k);});
+  (m.extra||[]).forEach(e=>{if(e.to===accId&&e.amount)s+=toUSD(+e.amount,e.cur||'USD',k);});
+  movesOf(k).forEach(mv=>{if(mv.amt){if(mv.to===accId)s+=(+mv.amt);if(mv.from===accId)s-=(+mv.amt);}});
+  return s;}
+// «тело» счёта в ЕГО ВАЛЮТЕ, рекурсивно: явное значение месяца, иначе прошлое (в валюте) + приток этого месяца
+// (переведённый в валюту по курсу ЭТОГО месяца). Нужно, чтобы RUB-позиции без транзакций в месяце
+// продолжали переоцениваться по текущему курсу (как раньше через carriedVal), а не замораживались в $
+// на момент последней транзакции — иначе курс рубля «забывается» как только счёт становится авто-считаемым.
+function accountValueNative(id,k){const v=itemVal(id,k);if(v!=null)return v;const pv=prevExist(k);const prevNative=pv!=null?accountValueNative(id,pv):0;
+  const it=S.items.find(x=>x.id===id);const cur=it?it.currency:'USD';return prevNative+accountInflowUSD(id,k)*fxRate(cur,k);}
+// ожидаемый остаток счёта (USD) = прошлое тело (в валюте, переоценённое по курсу ЭТОГО месяца) + приток этого месяца (USD)
+function accountExpectedUSD(accId,k){const it=S.items.find(x=>x.id===accId);const cur=it?it.currency:'USD';const pv=prevExist(k);
+  const prevNative=pv!=null?accountValueNative(accId,pv):0;return toUSD(prevNative,cur,k)+accountInflowUSD(accId,k);}
+// расход = сумма недостач на всех счетах трат (введено < ожидаемого)
+function monthExpenseUSD(k){let total=0;S.items.filter(i=>isSpendAccount(i.id)).forEach(sp=>{const diff=itemValUSD(sp.id,k)-accountExpectedUSD(sp.id,k);if(diff<0)total+=-diff;});return total;}
+// нарастающим итогом: доход минус расход по всем месяцам до k включительно. Это и есть «нереализованная прибыль со знаком минус» —
+// если тратишь больше, чем зарабатываешь, разница не исчезает после смены месяца, а продолжает копиться (пока не отработаешь обратно).
+// Считаем ТОЛЬКО с месяца, когда завели двойную запись доходов/расходов (S.cashflowStartMonth) — до этого
+// доход/расход не вводились системно, и сумма по старым месяцам — не реальный перерасход, а шум.
+function cashSurplusUSD(k){const start=S.cashflowStartMonth||'2026-09';let s=0;monthList().filter(x=>x<=k&&x>=start).forEach(x=>s+=(totalIncomeUSD(x)-monthExpenseUSD(x)));return s;}
+// «инвестиции» в широком смысле юзера: ВСЁ, что не тратный счёт (не только группа asset)
+function nonSpendTotalUSD(k){return S.items.reduce((s,i)=>s+(isSpendAccount(i.id)?0:itemValUSD(i.id,k)),0);}
+// нереализованная прибыль «если продать всё сейчас»: текущая цена минус цена покупки (или первая известная, если покупка неизвестна),
+// плюс накопленный доход — т.е. просто сумма itemPnL().total. Резерв/деятельность исключены (это кэш-счета без цены покупки:
+// их «рост» — обычно просто внесённые деньги, а не прибыль); архивные — тоже (иначе висел бы фантомный убыток до нуля).
+function unrealizedMTMUSD(k){return S.items.filter(i=>i.group!=='reserve'&&i.group!=='activity'&&!isArch(i,k)).reduce((s,i)=>s+itemPnL(i.id,k).total,0);}
+function setQty(id,v){const m=mo(curMonth);m.qtyExpr=m.qtyExpr||{};const num=parseExpr(v);if(num==null){m.qty[id]=null;m.qtyExpr[id]='';}else{m.qty[id]=num;m.qtyExpr[id]=(''+v);}delete m.qtyFromMoves[id];save();}
+// подтвердить перенесённое количество крипты (записать в этот месяц явно)
+function confirmQty(id){const q=itemQty(id,curMonth);if(q!=null){const m=mo(curMonth);m.qty[id]=q;delete m.qtyFromMoves[id];save();render();toast('Подтверждено');}}
+function confirmAllQty(){const k=curMonth,m=mo(k);let n=0;S.items.forEach(i=>{if(i.byQty&&!isArch(i,k)&&(m.qty[i.id]==null||m.qty[i.id]==='')){const q=itemQty(i.id,k);if(q!=null){m.qty[i.id]=q;delete m.qtyFromMoves[i.id];n++;}}});if(n){save();render();toast('Подтверждено: '+n);}else toast('Нет перенесённых');}
+function setTrade(id,side,f,v){const m=mo(curMonth);const qk=side==='buy'?'buyq':'sellq',pk=side==='buy'?'buypx':'sellpx',tk=side==='buy'?'dep':'wd';
+  m[qk][id]=(f==='q')?(v===''?null:+v):m[qk][id]; m[pk][id]=(f==='px')?(v===''?null:+v):m[pk][id];
+  const q=m[qk][id],px=m[pk][id]; m[tk][id]=(q!=null&&px!=null)?q*px:(m[tk][id]); save();}
+/* ---- движения денег (пополнения/выводы) и сверка ---- */
+function depUSD(id,k){const it=S.items.find(x=>x.id===id);const m=S.months[k];if(!it||!m||!m.dep)return 0;const v=m.dep[id];return (v==null||v==='')?0:toUSD(+v,it.currency,k);}
+function wdUSD(id,k){const it=S.items.find(x=>x.id===id);const m=S.months[k];if(!it||!m||!m.wd)return 0;const v=m.wd[id];return (v==null||v==='')?0:toUSD(+v,it.currency,k);}
+function flowInTotal(k){return S.items.reduce((s,i)=>s+depUSD(i.id,k),0);}
+function flowOutTotal(k){return S.items.reduce((s,i)=>s+wdUSD(i.id,k),0);}
+// рыночный рост актива за месяц = изменение стоимости − пополнение + вывод
+function moveNetInto(id,k){let s=0;movesOf(k).forEach(mv=>{if(mv.amt){if(mv.to===id)s+=+mv.amt;if(mv.from===id)s-=+mv.amt;}});return s;}
+function marketGainUSD(id,k){const pv=prevExist(k);if(pv==null)return 0;const prevV=itemValUSD(id,pv);if(prevV===0)return 0;/* первое появление позиции — не рыночный прирост, иначе годовая доходность улетает (напр. крипта в месяц перехода = +1200%) */const dv=itemValUSD(id,k)-prevV;return dv-depUSD(id,k)+wdUSD(id,k)-moveNetInto(id,k);}
+function marketGainTotal(k){return S.items.reduce((s,i)=>s+marketGainUSD(i.id,k),0);}
+// «доходность-вклад» позиции за месяц: только доход (для крипты годовая доходность из месяца бессмысленна → 0, её рост показывается отдельно как рост от покупки)
+function itemMonthReturnUSD(id,k){const it=S.items.find(x=>x.id===id);if(!it||it.noIncome)return 0;return monthIncomeUSD(id,k);}
+// агрегатная доходность набора: если ВСЕ позиции «только рост цены» (крипта) — общий рост от цены покупки; иначе годовых от дохода
+function aggYield(items,k){if(!items||!items.length)return null;const v=items.reduce((s,i)=>s+itemValUSD(i.id,k),0);if(items.every(i=>i.noIncome)){const cost=items.reduce((s,i)=>s+((i.cost!=null&&i.cost!=='')?+i.cost:0),0);return cost>0?(v-cost)/cost:null;}const c=items.reduce((s,i)=>s+itemMonthReturnUSD(i.id,k),0);return (v>0&&c)?(c*12)/v:null;}
+// «необъяснено»: нетто вложенного в активы должно = доход − расход. Иначе деньги из воздуха.
+function unexplainedUSD(k){const m=S.months[k];if(!m)return 0;const netIn=flowInTotal(k)-flowOutTotal(k);const income=totalIncomeUSD(k);const expense=(m.cashflow&&m.cashflow.expense)?+m.cashflow.expense:0;return netIn-(income-expense);}
+function itemVal(id,k){const m=S.months[k];if(!m||m.values[id]==null||m.values[id]==='')return null;return m.values[id];}
+// последнее введённое значение в прошлом месяце (перенос для стабильного имущества)
+function carriedVal(id,k){const ks=monthList().filter(x=>x<k).reverse();for(const x of ks){const m=S.months[x];const v=(m&&m.values)?m.values[id]:undefined;if(v!=null&&v!=='')return +v;}return null;}
+// значение позиции в валюте позиции с учётом переноса (non-reserve: если поле пустое — берём из прошлого месяца; reserve — только явный ввод для сверки)
+function isAutoAcct(it){return !!(it&&(it.group==='reserve'||it.group==='activity'||it.group==='liability'||it.selfReinvest));} // позиции, чей остаток считается сам из транзакций/дохода (а не переносится вручную)
+function itemValRaw(id,k){const v=itemVal(id,k);if(v!=null)return v;const it=S.items.find(x=>x.id===id);if(it&&!isAutoAcct(it)&&!it.byQty)return carriedVal(id,k);return null;}
+// позиция в архиве с месяца archivedAt: в этом и последующих месяцах не считается и не показывается; более ранняя история цела
+function isArch(it,k){return !!(it&&it.archivedAt&&k>=it.archivedAt);}
+function itemValUSD(id,k){const it=S.items.find(x=>x.id===id);if(!it)return 0;
+  if(isArch(it,k))return 0;
+  if(it.byQty){const q=itemQty(id,k);if(q==null)return 0;return q*cryptoPrice(it.symbol,k);}
+  const v=itemValRaw(id,k);
+  if(v==null){if(isAutoAcct(it))return accountExpectedUSD(id,k);return 0;} // reserve/activity/liability/selfReinvest: значение = прошлый остаток + доход сюда + транзакции (не рыночная переоценка). Для liability транзакция «на долг» корректно гасит его, т.к. его сумма хранится отрицательной
+  return toUSD(v,it.currency,k);}
+function catColor(name){const c=S.categories.find(c=>c.name===name);return c?c.color:'#8a91a1';}
+function catGroup(name){const c=S.categories.find(c=>c.name===name);return c?c.group:'asset';}
+
+/* ---- график погашения долга (обязательства: вручную / ежемесячно / график платежей) ----
+   Остаток долга (в валюте позиции) и так считается сам из транзакций (accountValueNative) — здесь
+   мы только СРАВНИВАЕМ его с тем, что «должно было быть оплачено по плану на сегодня», чтобы поймать
+   просрочку. План не хранит факт оплаты по шагам — статус каждой строки выводится из разницы между
+   накопленной суммой строк графика и уже реально погашенным (= стартовый долг минус текущий остаток). */
+function repayBaselineMonth(it){const ks=monthList();return ks.find(k=>itemVal(it.id,k)!=null)||it.createdAt||ks[0]||curMonth;}
+function repayBaselineNative(it){return accountValueNative(it.id,repayBaselineMonth(it));}
+// нормализованный план платежей [{date:'YYYY-MM-DD',amount}] в валюте позиции, по возрастанию даты
+function repayPlan(it){
+  if(!it||!it.repayMode||it.repayMode==='manual')return [];
+  if(it.repayMode==='schedule')return (it.repaySchedule||[]).filter(r=>r&&r.date&&r.amount).slice().sort((a,b)=>a.date<b.date?-1:1);
+  if(it.repayMode==='monthly'){
+    const amt=+it.repayMonthly||0;if(!amt)return [];
+    const todayStr=new Date().toISOString().slice(0,10);
+    const rows=[];let k=it.createdAt||repayBaselineMonth(it);let guard=0;
+    while(guard++<600){const d=k+'-01';rows.push({date:d,amount:amt});if(d>todayStr)break;k=shiftMonth(k,1);} // одна строка с запасом после сегодня — виден «следующий платёж»
+    return rows;
+  }
+  return [];
+}
+// статус по каждой строке плана (paid/overdue/upcoming), выведен из факта (сколько реально погашено к latestMonth) vs плана (сколько должно быть погашено по датам)
+function repayStatus(it){
+  const plan=repayPlan(it);if(!plan.length)return null;
+  const base=-repayBaselineNative(it); // долг на момент начала отслеживания (положительное число)
+  const lk=latestMonth()||curMonth;
+  const actualOwed=-accountValueNative(it.id,lk); // остаток сейчас (положительное число)
+  const totalPaidActual=base-actualOwed;
+  const todayStr=new Date().toISOString().slice(0,10);
+  let cum=0;
+  const rows=plan.map(r=>{cum+=+r.amount;const done=cum<=totalPaidActual+0.01;const status=done?'paid':(r.date<todayStr?'overdue':'upcoming');return Object.assign({},r,{cumExpected:cum,status});});
+  return{rows,base,actualOwed,totalPaidActual,overdue:rows.filter(r=>r.status==='overdue'),upcoming:rows.find(r=>r.status==='upcoming')};
+}
+// все просроченные/скоро-предстоящие (в пределах недели) платежи по всем долгам — для баннера, видимого на любой вкладке
+function repayAlerts(){
+  const k=latestMonth()||curMonth,soonMs=7*24*3600*1000,now=Date.now(),out=[];
+  S.items.filter(i=>i.group==='liability'&&i.repayMode&&i.repayMode!=='manual'&&!isArch(i,k)).forEach(it=>{
+    const st=repayStatus(it);if(!st)return;
+    if(st.overdue.length)out.push({item:it,kind:'overdue',row:st.overdue[st.overdue.length-1],count:st.overdue.length});
+    else if(st.upcoming&&Math.abs(new Date(st.upcoming.date).getTime()-now)<soonMs)out.push({item:it,kind:'soon',row:st.upcoming,count:1});
+  });
+  return out;
+}
+function addRepayRow(id){const it=S.items.find(x=>x.id===id);if(!it)return;it.repaySchedule=it.repaySchedule||[];it.repaySchedule.push({date:new Date().toISOString().slice(0,10),amount:null});save();assetDetail(id);}
+function setRepayRow(id,i,f,v){const it=S.items.find(x=>x.id===id);if(!it||!it.repaySchedule||!it.repaySchedule[i])return;it.repaySchedule[i][f]=(f==='amount')?(v===''?null:+v):v;save();}
+function delRepayRow(id,i){const it=S.items.find(x=>x.id===id);if(!it||!it.repaySchedule)return;it.repaySchedule.splice(i,1);save();assetDetail(id);}
+
+/* ---- computations ---- */
+function groupTotalUSD(g,k){return S.items.filter(i=>i.group===g).reduce((s,i)=>s+itemValUSD(i.id,k),0);}
+function netWorthUSD(k){return S.items.reduce((s,i)=>s+itemValUSD(i.id,k),0);}
+const PPY={day:365,month:12,quarter:4,year:1};
+const PERIOD_SHORT={day:'дн',month:'мес',quarter:'кв',year:'год'};
+function normMonthly(per,period){return per*(PPY[period]||12)/12;}
+function incomeCfg(it){return (it && it.income && typeof it.income==='object')?it.income:{mode:'variable'};}
+// проценты считаются от остатка НА НАЧАЛО месяца (= закрытие прошлого месяца), не от текущего — иначе (а) не работает без ручного перевводения значения каждый месяц (carry-forward не читается), (б) зацикливается при самореинвесте (тело зависит от дохода этого же месяца).
+// Берём остаток В ВАЛЮТЕ ПОЗИЦИИ (не $) — иначе «5%/мес» на рублёвом займе плыл бы от курса доллара между месяцами, а не от реальной суммы в рублях.
+function computedIncomeCur(it,k){const c=incomeCfg(it);if(c.mode!=='fixed')return null;
+  if(c.by==='percent'){const pv=prevExist(k);let baseNative=0;if(pv!=null){baseNative=it.selfReinvest?accountValueNative(it.id,pv):(itemVal(it.id,pv)!=null?+itemVal(it.id,pv):(carriedVal(it.id,pv)||0));}return normMonthly(baseNative*(+c.rate||0)/100,c.period||'month');}
+  return normMonthly(+c.rate||0,c.period||'month');}
+function incomeDesc(it){const c=incomeCfg(it);if(c.mode!=='fixed')return 'вручную';return (c.by==='percent'?((+c.rate||0)+'%'):('фикс '+ (+c.rate||0)))+'/'+(PERIOD_SHORT[c.period]||'мес');}
+function monthIncomeUSD(id,k){const it=S.items.find(x=>x.id===id);if(!it)return 0;if(isArch(it,k))return 0;const m=S.months[k];const ov=m?m.income[id]:null;if(ov!=null&&ov!=='')return +ov;/* доход хранится СРАЗУ в USD (зафиксирован по курсу на момент ввода) */
+  if(it.selfReinvest&&m&&m.values[id]!=null&&m.values[id]!=='')return marketGainUSD(id,k); // переоценка: явно введён остаток в «Остатках» → доход = изменение стоимости (как у обычного актива), а не % формула
+  const c=incomeCfg(it);if(c.mode==='fixed'){const v=computedIncomeCur(it,k);return v==null?0:toUSD(v,it.currency,k);}return 0;}
+// «реально пришедший» доход (не просто начисление/капитализация на риске контрагента): для selfReinvest-позиций
+// (займы с капитализацией %) считаем доходом за месяц только то, что реально ВЫВЕДЕНО на другой счёт —
+// пока деньги просто прибавляются к телу того же долга, это не прибыль месяца (могут не вернуть вовсе),
+// а чисто нереализованная прибыль (учитывается в НП/стоимости позиции, не в «Доход за месяц»)
+function isCashIncome(i,k){if(!i.selfReinvest)return true;const m=S.months[k];const acc=m&&m.incomeTo&&m.incomeTo[i.id];return !!(acc&&acc!==i.id);}
+function totalIncomeUSD(k){let s=S.items.reduce((a,i)=>a+(isCashIncome(i,k)?monthIncomeUSD(i.id,k):0),0);const m=S.months[k];if(m&&m.extra)m.extra.forEach(e=>{if(e.amount&&e.type!=='capital')s+=toUSD(+e.amount,e.cur||'USD',k);});return s;} // type='capital' (продажа имущества) — не прибыль, не в доход
+function isActiveIncomeItem(i){return (i.incomeType||i.group)==='activity';} // группа 'activity' = активный доход, если не переопределено вручную
+function passiveIncomeUSD(k){let s=S.items.reduce((a,i)=>a+((isCashIncome(i,k)&&!isActiveIncomeItem(i))?monthIncomeUSD(i.id,k):0),0);const m=S.months[k];if(m&&m.extra)m.extra.forEach(e=>{if(e.amount&&e.type!=='active'&&e.type!=='capital')s+=toUSD(+e.amount,e.cur||'USD',k);});return s;}
+function activeIncomeUSD(k){let s=S.items.reduce((a,i)=>a+((isCashIncome(i,k)&&isActiveIncomeItem(i))?monthIncomeUSD(i.id,k):0),0);const m=S.months[k];if(m&&m.extra)m.extra.forEach(e=>{if(e.amount&&e.type==='active')s+=toUSD(+e.amount,e.cur||'USD',k);});return s;}
+function moExtra(k){const m=mo(k);if(!m.extra)m.extra=[];return m.extra;}
+function extraTotalUSD(k){const m=S.months[k];if(!m||!m.extra)return 0;return m.extra.reduce((s,e)=>s+(e.amount?toUSD(+e.amount,e.cur||'USD',k):0),0);}
+function fundsTotalUSD(k){const m=S.months[k];if(!m)return 0;return S.fundAccounts.reduce((s,a)=>{const v=m.funds[a.id];return s+(v==null||v===''?0:toUSD(v,a.currency,k));},0);}
+// item pnl since first appearance
+function itemPnL(id,k){const it=S.items.find(x=>x.id===id);const cur=itemValUSD(id,k);
+  const ks=monthList().filter(x=>x<=k);let first=null;for(const x of ks){if(itemVal(id,x)!=null){first=itemValUSD(id,x);break;}}
+  let inc=0;const skipIncome=(it&&(it.group==='reserve'||it.group==='activity'));if(!skipIncome)ks.forEach(x=>inc+=monthIncomeUSD(id,x));
+  // цена покупки (cost basis, зафиксирована в $) — если задана, прибыль считается от неё. НО: cost — свойство
+  // самой позиции (не помесячное), а месяцы ДО её появления (first==null, т.е. ни разу не было явного ввода
+  // по этот месяц включительно) всё равно имеют cur=0 (позиции тогда ещё не существовало) — без доп. условия
+  // base=cost давало бы change=0−cost на КАЖДЫЙ такой древний месяц, пока позиция не появится, раздувая
+  // «Нереализ. прибыль (рынок)» огромным мнимым убытком на всей истории ДО покупки актива (поймано юзером —
+  // на древних месяцах, задолго до появления позиций с заданной ценой покупки, висело стабильное большое отрицательное число).
+  const hasCost = it && it.cost!=null && it.cost!=='' && (first!=null || cur!==0);
+  const base = hasCost ? +it.cost : (first==null?cur:first);
+  const change = cur - base;
+  // principal-позиции (займы/наличка/обязательства/свободные средства): изменение стоимости = движение тела, НЕ прибыль.
+  // group='liability' — принципал ВСЕГДА (даже без явной галочки): гашение долга (транзакциями/графиком) — это
+  // перекладка денег, а не прибыль. Иначе новый пассив без проставленного чекбокса засчитывает своё собственное
+  // погашение в «Нереализ. прибыль (рынок)» (поймано юзером на свежесозданном пассиве-рассрочке —
+  // автодогоняющий остаток создавал огромный мнимый change). Явная галочка it.principal остаётся — для группы liability она теперь избыточна,
+  // но ничего не ломает (все старые liab_*/loan_* и так уже её имели).
+  const principal=!!(it&&(it.principal||it.group==='liability'));
+  const total = principal ? inc : (change+inc);
+  // ДОХОДНОСТЬ (годовых): для доходных активов — от дохода за месяц; для «только рост цены» — от рыночного роста.
+  const monthInc = monthIncomeUSD(id,k);
+  const noIncome = !!(it && it.noIncome);
+  const growth = (hasCost && base>0) ? (cur-base)/base : null; // рост стоимости с покупки, %
+  // ДОХОДНОСТЬ: доходные активы — годовых от дохода за месяц; «только рост цены» (крипта) — ОБЩИЙ рост от цены покупки (annualized из одного месяца для цены скачет ±1000% — бессмысленно)
+  const roi = noIncome ? growth : ((cur>0 && monthInc) ? (monthInc*12)/cur : null);
+  return{value:cur,first:first||0,cost:hasCost?+it.cost:null,change,income:inc,total,monthInc,roi,growth,noIncome,principal};}
+
+/* ================= RENDER ================= */
+const TABS=[['dash','Обзор'],['capital','Капитал'],['entry','Заполнить месяц'],['history','История'],['manage','Активы'],['settings','⚙']];
+function render(){
+  document.getElementById('tabs').innerHTML=TABS.map(([id,l])=>`<button class="${tab===id?'active':''}" onclick="setTab('${id}')">${l}</button>`).join('')+(tab==='dash'?`<button style="margin-left:auto" onclick="dashCardsModal()" title="Настроить карточки">✏️</button>`:'');
+  document.getElementById('curToggle').innerHTML=['USD','RUB'].map(c=>`<button class="${display===c?'on':''}" onclick="setDisplay('${c}')">${CUR_SYMBOL[c]} ${c}</button>`).join('');
+  const hz=document.getElementById('hzBtn');if(hz){hz.textContent=S.hideZero?'⊘ показать нули':'⊘ скрыть нули';hz.classList.toggle('on',!!S.hideZero);}
+  const eb=document.getElementById('eyeBtn');if(eb){eb.textContent=hideAmt?'🙈':'👁';eb.classList.toggle('on',hideAmt);}
+  const mn=document.getElementById('monthNav');if(mn){const showNav=['dash','capital','entry'].includes(tab)&&monthList().length;mn.style.display=showNav?'inline-flex':'none';if(showNav)mn.innerHTML=`<button onclick="navM(-1)">‹</button><span class="cur">${mLabel(curMonth)}</span><button onclick="navM(1)">›</button>`;}
+  const ra=document.getElementById('repayAlerts');
+  if(ra){const alerts=repayAlerts();ra.innerHTML=alerts.length?`<div class="panel" style="border:1px solid var(--liab);margin:14px 0"><div class="panel-b" style="display:flex;flex-direction:column;gap:8px;padding:12px 16px">${alerts.map(a=>{const over=a.kind==='overdue';const amtTxt=hideAmt?'•••':(+a.row.amount).toLocaleString('ru-RU')+' '+a.item.currency;return `<div style="display:flex;align-items:center;gap:10px"><span style="font-size:18px">${over?'⚠':'⏰'}</span><div><b>${esc(a.item.name)}</b> — ${over?'просрочен платёж от '+a.row.date:'платёж '+a.row.date}: <span class="${over?'neg':''}">${amtTxt}</span>${over&&a.count>1?` <span class="muted">(+ ещё ${a.count-1})</span>`:''}</div></div>`;}).join('')}</div></div>`:'';}
+  const v=document.getElementById('view');
+  v.innerHTML={dash:viewDash,capital:viewCapital,entry:viewEntry,funds:viewFunds,history:viewHistory,manage:viewManage,settings:viewSettings}[tab]();
+  if(tab==='dash')drawDash();
+  document.getElementById('subtitle').textContent=S.items.length?`${S.items.length} позиций · ${monthList().length} мес · база ${S.baseCurrency}`:'Активы · Пассивы · Обязательства';
+}
+function setTab(t){tab=t;render();}
+function setDisplay(c){display=c;save();render();}
+function toggleHideZero(){S.hideZero=!S.hideZero;save();render();}
+async function sha256hex(text){try{const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');}catch(e){return null;}}
+function setHideAmt(v){hideAmt=v;try{localStorage.setItem('fintracker_hide',hideAmt?'1':'0');}catch(e){}render();}
+function toggleHideAmt(){
+  if(hideAmt&&S.hideAmtHash){unlockHideAmtModal();return;} // прячем→показываем и пароль задан — спросить его
+  setHideAmt(!hideAmt);
+}
+function unlockHideAmtModal(){
+  modal('Пароль, чтобы показать суммы',`<div class="field"><input class="inp" id="hpw" type="password" placeholder="Пароль" autocomplete="off"></div>`,async()=>{
+    const v=document.getElementById('hpw').value;
+    const h=await sha256hex(v);
+    if(h&&h===S.hideAmtHash){setHideAmt(false);return true;}
+    toast('Неверный пароль');return false;
+  });
+}
+async function setHideAmtPassword(){
+  modal('Пароль для показа сумм',`<div class="field"><label>Новый пароль (пусто — убрать защиту)</label><input class="inp" id="hpw1" type="password" autocomplete="new-password"></div><div class="field"><label>Повтори пароль</label><input class="inp" id="hpw2" type="password" autocomplete="new-password"></div>`,async()=>{
+    const p1=document.getElementById('hpw1').value,p2=document.getElementById('hpw2').value;
+    if(p1===''){delete S.hideAmtHash;save();toast('Защита снята');return true;}
+    if(p1!==p2){toast('Пароли не совпадают');return false;}
+    S.hideAmtHash=await sha256hex(p1);save();toast('Пароль сохранён');return true;
+  });
+}
+// скрывать ли позицию с нулевым балансом (когда включён режим): эффективная стоимость ~0 и нет дохода в месяце
+function hideZeroItem(i,k){if(!S.hideZero)return false;if(monthIncomeUSD(i.id,k)>0.5)return false;return Math.abs(itemValUSD(i.id,k))<0.5;}
+
+/* ---------- DASHBOARD ---------- */
+function viewDash(){
+  if(!S.items.length)return quickStart();
+  let k=curMonth;if(!k||!S.months[k])k=latestMonth();if(!k)return empty('Нет месяцев','Внесите первый срез.','Ввод за месяц',"setTab('entry')");
+  const nw=netWorthUSD(k),pv=prevExist(k),prevNw=pv?netWorthUSD(pv):null;
+  const chg=prevNw!=null?nw-prevNw:null, chgPct=prevNw?chg/Math.abs(prevNw):null;
+  const A=groupTotalUSD('asset',k),AC=groupTotalUSD('activity',k),R=groupTotalUSD('reserve',k),P=groupTotalUSD('passive',k),L=groupTotalUSD('liability',k);
+  const inc=totalIncomeUSD(k);const hasActivity=S.items.some(i=>i.group==='activity');
+  const np=investmentNpState(k);const rp=reinvestPct(k),tg=targetReinvestPct(k);const under=(rp!=null&&tg!=null&&rp<tg-0.001);
+  const cardFns={
+    g_asset:()=>`<div class="card"><div class="lbl" style="color:var(--asset)">● Инвестиции</div><div class="val">${fmt(A,k)}</div></div>`,
+    g_activity:()=>hasActivity?`<div class="card"><div class="lbl" style="color:${GROUP_COLOR.activity}">● Текущая деятельность</div><div class="val">${fmt(AC,k)}</div></div>`:'',
+    g_reserve:()=>`<div class="card"><div class="lbl" style="color:#5c7cfa">● Свободные средства</div><div class="val">${fmt(R,k)}</div></div>`,
+    g_passive:()=>`<div class="card"><div class="lbl" style="color:var(--passive)">● Пассивы</div><div class="val">${fmt(P,k)}</div></div>`,
+    g_liability:()=>`<div class="card"><div class="lbl" style="color:var(--liab)">● Обязательства</div><div class="val neg">${fmt(L,k)}</div></div>`,
+    income:()=>`<div class="card"><div class="lbl">Доход за ${mLabel(k)}</div><div class="val pos">${fmt(inc,k)}</div></div>`,
+    expense:()=>{const exp=monthExpenseUSD(k);if(exp<0.5)return '';return `<div class="card"><div class="lbl">Расход за ${mLabel(k)}</div><div class="val neg">${fmt(exp,k)}</div></div>`;},
+    cashSurplus:()=>{const cs=cashSurplusUSD(k);if(Math.abs(cs)<0.5)return '';const over=cs<0;return `<div class="card"><div class="lbl" style="color:${over?'var(--liab)':'var(--asset)'}">${over?'🔻':'📈'} Баланс дохода/расходов</div><div class="val ${over?'neg':'pos'}">${fmt(cs,k)}</div></div>`;},
+    passiveIncome:()=>`<div class="card"><div class="lbl">Пассивный доход / мес</div><div class="val pos">${fmt(passiveIncomeUSD(k),k)}</div></div>`,
+    activeIncome:()=>activeIncomeUSD(k)?`<div class="card"><div class="lbl">Активный доход / мес</div><div class="val pos">${fmt(activeIncomeUSD(k),k)}</div></div>`:'',
+    yieldAssets:()=>`<div class="card"><div class="lbl">Доходность активов</div><div class="val">${(()=>{const y=aggYield(S.items.filter(i=>i.group==='asset'),k);return y!=null?pct(y):'—';})()}</div></div>`,
+    mtmUnrealized:()=>{const v=unrealizedMTMUSD(k);if(Math.abs(v)<0.5)return '';const neg=v<0;return `<div class="card" style="cursor:pointer" onclick="mtmBreakdown()" title="Клик — из чего складывается"><div class="lbl" style="color:${neg?'var(--liab)':'var(--asset)'}">${neg?'🔻':'📈'} Нереализованная прибыль (по рынку)</div><div class="val ${neg?'neg':'pos'}">${fmt(v,k)}</div></div>`;},
+    npInvest:()=>{if(Math.abs(np.unreal)<0.5)return '';return `<div class="card"><div class="lbl" style="color:${np.unreal<0?'var(--liab)':'var(--asset)'}">${np.unreal<0?'🔻':'📈'} НП инвестиции</div><div class="val ${np.unreal>=0?'pos':'neg'}">${fmt(np.unreal,k)}</div></div>`;},
+    realized:()=>{if(Math.abs(np.real)<0.5)return '';return `<div class="card"><div class="lbl">💵 Реализованная прибыль</div><div class="val ${np.real>=0?'pos':'neg'}">${fmt(np.real,k)}</div></div>`;},
+    reinvestPct:()=>`<div class="card"><div class="lbl">♻️ Реинвест ${mLabel(k)}</div><div class="val ${under?'neg':''}">${rp!=null?pct(rp):'—'}${tg!=null?' · цель '+pct(tg):''}</div></div>`,
+  };
+  const cardsBody=DASH_CARDS.filter(([id])=>dashCardOn(id)).map(([id])=>cardFns[id]()).join('');
+  const cards=`<div class="grid cards">${cardsBody}</div>`;
+  const netBlock=`<div class="net-inline"><div class="lbl">Чистый капитал · ${mLabel(k)}</div><div class="val">${fmt(nw,k)}</div>
+      <div class="sub">${chg!=null?`<span class="chip ${chg>=0?'up':'down'}">${chg>=0?'▲':'▼'} ${fmt(Math.abs(chg),k)} (${pct(chgPct)})</span> к прошлому месяцу`:''}</div></div>`;
+  const charts=`<div class="two-col">
+    <div class="panel" style="margin-top:15px"><div class="panel-h"><h2>Динамика капитала</h2><span class="muted">чистый · активы</span></div><div class="panel-b"><div id="lc"></div></div></div>
+    <div class="panel" style="margin-top:15px"><div class="panel-h"><h2>Структура активов</h2></div><div class="panel-b"><div id="pc"></div>${netBlock}</div></div>
+  </div>`;
+  // by category within groups
+  let rows='';
+  const yld=(v,c)=>(v>0&&c)?(c*12)/v:null;
+  GROUP_ORDER.forEach(g=>{
+    const items=S.items.filter(i=>i.group===g);if(!items.length)return;
+    const gt=items.reduce((s,i)=>s+itemValUSD(i.id,k),0);
+    const gi=items.reduce((s,i)=>s+monthIncomeUSD(i.id,k),0);
+    const gret=items.reduce((s,i)=>s+itemMonthReturnUSD(i.id,k),0);
+    const gy=aggYield(items,k);
+    rows+=`<tr class="group-row"><td style="color:${GROUP_COLOR[g]}">${GROUPS[g]}</td><td>${fmt(gt,k)}</td><td class="${gi?'pos':''}">${gi?fmt(gi,k):''}</td><td>${gy!=null?pct(gy):''}</td><td></td></tr>`;
+    const byCat={};items.forEach(i=>{(byCat[i.category]=byCat[i.category]||{v:0,inc:0,items:[]});byCat[i.category].v+=itemValUSD(i.id,k);byCat[i.category].inc+=monthIncomeUSD(i.id,k);byCat[i.category].items.push(i);});
+    Object.entries(byCat).sort((a,b)=>Math.abs(b[1].v)-Math.abs(a[1].v)).forEach(([c,d])=>{
+      const cy=aggYield(d.items,k);
+      rows+=`<tr class="sub-row"><td><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</td><td>${fmt(d.v,k)}</td><td class="${d.inc?'pos':'muted'}">${d.inc?fmt(d.inc,k):'—'}</td><td class="${cy!=null?sign(cy):'muted'}">${cy!=null?pct(cy):'—'}</td><td class="muted">${d.v?(d.v/gt*100).toFixed(0)+'%':''}</td></tr>`;
+    });
+  });
+  const pY=yld(groupTotalUSD('asset',k),S.items.filter(i=>i.group==='asset').reduce((s,i)=>s+itemMonthReturnUSD(i.id,k),0));
+  const table=`<div class="panel"><div class="panel-h"><h2>По категориям</h2><button class="btn ghost sm" onclick="setTab('capital')">Подробно →</button></div>
+    <div class="scroll-x"><table><thead><tr><th>Группа / категория</th><th>Стоимость</th><th>Доход/мес</th><th>Доходность</th><th>Доля</th></tr></thead><tbody>${rows}
+      <tr class="total-row"><td>Чистый капитал</td><td>${fmt(nw,k)}</td><td class="pos">${fmt(inc,k)}</td><td>${pY!=null?pct(pY):''}</td><td></td></tr></tbody></table></div></div>`;
+  return cards+charts+table;
+}
+function drawDash(){const k=latestMonth();if(!k)return;const ks=monthList();
+  const hiddenPlaceholder='<div class="empty muted" style="padding:30px 10px">🙈 скрыто<br><span style="font-size:12px">нажми 👁 вверху, чтобы показать</span></div>';
+  const el=document.getElementById('lc');if(el){if(hideAmt){el.innerHTML=hiddenPlaceholder;}else{
+    const nw=ks.map(x=>netWorthUSD(x)),as=ks.map(x=>groupTotalUSD('asset',x));
+    el.innerHTML=lineSVG(ks,[{data:nw,color:'#2f6bff',label:'Чистый капитал'},{data:as,color:'#12a150',label:'Активы'}]);}}
+  const pe=document.getElementById('pc');if(pe){if(hideAmt){pe.innerHTML=hiddenPlaceholder;}else{
+    const byCat={};S.items.filter(i=>i.group==='asset').forEach(i=>{const v=itemValUSD(i.id,k);if(v>0)byCat[i.category]=(byCat[i.category]||0)+v;});
+    pe.innerHTML=pieSVG(byCat,k);}}}
+
+/* ---------- CAPITAL ---------- */
+// свёрнутость в «Капитале»: kind g(группа)/c(категория)/s(подкатегория). По умолчанию развёрнуты только группы; категории и подкатегории свёрнуты (видны итоги).
+let capCol={g:{},c:{},s:{}};
+function capKey(){return encodeURIComponent([].join.call(arguments,'||')).replace(/'/g,'%27');}
+function capIsCol(kind,key){const v=capCol[kind][key];return v===undefined?(kind!=='g'):v;}
+function capToggle(kind,key){capCol[kind][key]=!capIsCol(kind,key);render();}
+function toggleCapGroup(g){capToggle('g',g);}
+function capAllToggle(){const anyOpen=GROUP_ORDER.some(g=>!capIsCol('g',g));GROUP_ORDER.forEach(g=>capCol.g[g]=anyOpen);render();}
+function viewCapital(){
+  const k=curMonth;
+  if(!S.items.length)return empty('Нет позиций','Добавьте активы и пассивы.','Активы',"setTab('manage')");
+  const anyOpen=GROUP_ORDER.some(g=>!capIsCol('g',g));
+  let html=`<div class="panel"><div class="panel-h"><h2>Активы, пассивы, обязательства</h2>
+    <button class="btn ghost sm" onclick="capAllToggle()">${anyOpen?'⊟ Свернуть все':'⊞ Развернуть все'}</button></div>
+    <div class="scroll-x"><table><thead><tr><th>Позиция</th><th>Тип</th><th>Стоимость</th><th>Доход/мес</th><th>Прибыль всего</th><th>Доходность</th></tr></thead><tbody>`;
+  const aggY=(items)=>aggYield(items,k);
+  const vis=i=>{if(isArch(i,k))return false;return itemValRaw(i.id,k)!=null || (i.byQty&&itemQty(i.id,k)!=null) || monthIncomeUSD(i.id,k)!==0 || (isAutoAcct(i)&&Math.abs(itemValUSD(i.id,k))>0.005);};
+  GROUP_ORDER.forEach(g=>{
+    const gItems=S.items.filter(i=>i.group===g && vis(i));if(!gItems.length)return;
+    const gVal=gItems.reduce((s,i)=>s+itemValUSD(i.id,k),0);
+    const gInc=gItems.reduce((s,i)=>s+monthIncomeUSD(i.id,k),0);
+    const gY=aggY(gItems);
+    const collapsed=capIsCol('g',g);
+    html+=`<tr class="group-row cap-group" onclick="toggleCapGroup('${g}')" title="${collapsed?'Развернуть':'Свернуть'} группу"><td style="color:${GROUP_COLOR[g]}"><span class="caret">${collapsed?'▸':'▾'}</span>${GROUPS[g]}${collapsed?` <span class="muted" style="font-weight:400">· ${gItems.length}</span>`:''}</td><td></td><td>${fmt(gVal,k)}</td><td class="${gInc?'pos':''}">${gInc?fmt(gInc,k):''}</td><td></td><td class="${gY!=null?sign(gY):''}">${gY!=null?pct(gY):''}</td></tr>`;
+    if(collapsed)return;
+    const cats=[...new Set(gItems.map(i=>i.category))];
+    const catsSorted=cats.map(c=>({c,v:gItems.filter(i=>i.category===c).reduce((s,i)=>s+itemValUSD(i.id,k),0)})).sort((a,b)=>b.v-a.v).map(x=>x.c);
+    const multi=cats.length>1;
+    catsSorted.forEach(c=>{
+      const cItems=gItems.filter(i=>i.category===c);
+      const cVal=cItems.reduce((s,i)=>s+itemValUSD(i.id,k),0);
+      const cInc=cItems.reduce((s,i)=>s+monthIncomeUSD(i.id,k),0);
+      const cY=aggY(cItems);
+      const cKey=capKey(g,c);const cCol=multi&&capIsCol('c',cKey);
+      if(multi) html+=`<tr class="cat-row cap-cat" onclick="capToggle('c','${cKey}')" title="${cCol?'Развернуть':'Свернуть'} категорию"><td><span class="caret">${cCol?'▸':'▾'}</span><span class="dot" style="background:${catColor(c)}"></span>${esc(c)} <span class="muted" style="font-weight:400">· ${cItems.length}</span></td><td></td><td>${fmt(cVal,k)}</td><td class="${cInc?'pos':'muted'}">${cInc?fmt(cInc,k):'—'}</td><td></td><td class="${cY!=null?sign(cY):'muted'}">${cY!=null?pct(cY):'—'}</td></tr>`;
+      if(cCol)return;
+      const subs=[...new Set(cItems.map(i=>i.subcategory||''))];
+      const subsSorted=subs.map(s=>({s,v:cItems.filter(i=>(i.subcategory||'')===s).reduce((a,i)=>a+itemValUSD(i.id,k),0)})).sort((a,b)=>b.v-a.v).map(x=>x.s);
+      subsSorted.forEach(sc=>{
+        const scItems=cItems.filter(i=>(i.subcategory||'')===sc);const hasSub=sc!=='';
+        let scCol=false;
+        if(hasSub){const scVal=scItems.reduce((s,i)=>s+itemValUSD(i.id,k),0);const scInc=scItems.reduce((s,i)=>s+monthIncomeUSD(i.id,k),0);const scY=aggY(scItems);
+          const sKey=capKey(g,c,sc);scCol=capIsCol('s',sKey);
+          html+=`<tr class="sub2-row cap-sub" onclick="capToggle('s','${sKey}')" title="${scCol?'Развернуть':'Свернуть'} подкатегорию"><td><span class="caret">${scCol?'▸':'▾'}</span>◦ ${esc(sc)} <span class="muted" style="font-weight:400">· ${scItems.length}</span></td><td></td><td>${fmt(scVal,k)}</td><td class="${scInc?'pos':'muted'}">${scInc?fmt(scInc,k):'—'}</td><td></td><td class="${scY!=null?sign(scY):'muted'}">${scY!=null?pct(scY):'—'}</td></tr>`;}
+        if(scCol)return;
+        scItems.sort((a,b)=>itemValUSD(b.id,k)-itemValUSD(a.id,k)).forEach(i=>{
+          const p=itemPnL(i.id,k);const inc=monthIncomeUSD(i.id,k);
+          if(p.value===0 && inc===0 && itemVal(i.id,k)==null)return;
+          if(hideZeroItem(i,k))return;
+          const cls=hasSub?'item2-row':(multi?'item-row':'sub-row');
+          html+=`<tr class="${cls}"><td><span class="dot" style="background:${catColor(i.category)}"></span><a class="asset-link" onclick="assetDetail('${i.id}')" title="Открыть: транзакции и история">${esc(i.name)}</a>${i.currency!=='USD'?`<span class="muted" style="font-size:11px"> · ${i.currency}</span>`:''}${(()=>{if(p.cost==null)return '';const gt=p.growth!=null?` · <span class="${sign(p.growth)}">${p.growth>=0?'+':'−'}${Math.abs(p.growth*100).toFixed(0)}%</span>`:'';const nf=(x)=>x==null?'?':(x>=100?Math.round(x).toLocaleString('ru-RU'):x>=1?x.toFixed(2):x.toFixed(4));if(i.byQty){const q=itemQty(i.id,k);const per=q?p.cost/q:null;const now=cryptoPrice(i.symbol,k);const costStr=hideAmt?'•••':('$'+nf(per));const priceStr=hideAmt?'•••':('$'+nf(now));return `<div class="muted" style="font-size:10px">куплено по ${costStr}/${esc(i.symbol||'ед')} · сейчас ${priceStr}${gt}</div>`;}const costStr=hideAmt?'•••':'$'+Math.round(p.cost).toLocaleString('ru-RU');return `<div class="muted" style="font-size:10px">куплено за ${costStr}${gt}</div>`;})()}</td>
+            <td><span class="tag ${g}">${g==='asset'?'актив':g==='activity'?'деятельность':g==='reserve'?'средства':g==='passive'?'пассив':'долг'}</span></td>
+            <td>${fmt(p.value,k)}</td><td class="${inc?'pos':'muted'}">${inc?fmt(inc,k):'—'}${incomeCfg(i).mode==='fixed'?`<div class="muted" style="font-size:10px">${incomeDesc(i)}</div>`:''}</td>
+            <td class="${sign(p.total)}">${p.first?fmt(p.total,k):'—'}</td><td class="${p.roi!=null?sign(p.roi):'muted'}">${p.roi!=null?pct(p.roi):'—'}</td></tr>`;
+        });
+      });
+    });
+  });
+  html+=`<tr class="total-row"><td>Чистый капитал</td><td></td><td>${fmt(netWorthUSD(k),k)}</td><td class="pos">${fmt(totalIncomeUSD(k),k)}</td><td></td><td></td></tr>`;
+  html+=`</tbody></table></div></div>`;
+  return html;
+}
+
+/* ---------- ENTRY ---------- */
+let entrySub='income';
+function setEntrySub(s){entrySub=s;render();}
+const ENTRY_SUBTABS=[['income','💰 Прибыль'],['moves','🔄 Транзакции'],['balances','📊 Остатки']];
+function viewEntry(){
+  if(!S.items.length)return empty('Нет позиций','Сначала добавьте активы.','Активы',"setTab('manage')");
+  const k=curMonth;const m=mo(k);const prev=prevExist(k);
+  let head=`<div class="panel"><div class="panel-h"><h2>Заполнить месяц</h2>
+     <div class="toolbar">
+     <div class="seg" style="margin:0">${ENTRY_SUBTABS.map(([id,l])=>`<button class="pill ${entrySub===id?'on':''}" onclick="setEntrySub('${id}')">${l}</button>`).join('')}</div>
+     <span class="hint">курс $→₽: <input class="inp" style="width:76px;display:inline-block" type="number" step="any" value="${m.rate||''}" placeholder="${(S.fx&&S.fx.RUB)?Math.round(S.fx.RUB):rateOf(k)}" oninput="setRate(this.value)"> <button class="btn ghost sm" onclick="fetchRates({stamp:'${k}'})">🔄 Текущий курс</button></span>
+     </div></div></div>`;
+  let nav='';
+  let secI='',secM='',secB='';
+  const accts=accountItems();
+  const destItems=S.items.filter(i=>(i.group==='reserve'||i.group==='activity'||i.selfReinvest)&&!isArch(i,k)); // счёта-получатели дохода: резервные + текущая деятельность + позиции с капитализацией (доход на тот же счёт = реинвест/капитализация)
+  const acctOpts=(sel)=>`<option value="">— счёт —</option>`+destItems.map(a=>`<option value="${a.id}" ${sel===a.id?'selected':''}>${esc(a.name)}${(a.group==='activity'||a.selfReinvest)?' ↩ (реинвест)':''}</option>`).join('');
+  const spOpts=(sel)=>`<option disabled>──────</option>`+SPECIAL_ENDPOINTS.map(([v,lbl])=>`<option value="${v}" ${sel===v?'selected':''}>${lbl}</option>`).join('');
+  const allOpts=(sel)=>`<option value="">— откуда —</option>`+GROUP_ORDER.flatMap(g=>S.items.filter(i=>i.group===g&&!isArch(i,k))).map(i=>`<option value="${i.id}" ${sel===i.id?'selected':''}>${esc(i.name)}</option>`).join('')+`<option value="__new__">➕ новая позиция…</option>`+spOpts(sel);
+
+  /* ===== ЧАСТЬ 1 — ДОХОД ЗА ПРОШЛЫЙ МЕСЯЦ ===== */
+  const earners=S.items.filter(i=>(i.group==='asset'||i.group==='reserve'||i.group==='activity')&&!i.noIncome&&!isArch(i,k));
+  const earnerRow=(i)=>{const cfg=incomeCfg(i);
+    const cur=(m.incomeCur&&m.incomeCur[i.id])||i.currency;
+    const edited=(m.income[i.id]!=null&&m.income[i.id]!=='');
+    const valExplicit=(m.values[i.id]!=null&&m.values[i.id]!=='');
+    const fromReval=(!edited&&i.selfReinvest&&valExplicit); // доход выведен из явно введённого остатка (переоценка — симметрично % формуле)
+    const baseUSD=edited?(+m.income[i.id]):((cfg.mode==='fixed'||fromReval)?monthIncomeUSD(i.id,k):null);
+    const shownAmt=(baseUSD!=null)?Math.round(baseUSD*fxRate(cur,k)*100)/100:'';
+    const iExpr=(m.incomeExpr&&m.incomeExpr[i.id])||'';const iInput=iExpr!==''?iExpr:(shownAmt===''?'':(''+shownAmt));
+    const notCash=(i.selfReinvest&&!isCashIncome(i,k)&&baseUSD&&Math.abs(baseUSD)>0.01);
+    return `<tr><td><span class="dot" style="background:${catColor(i.category)}"></span>${esc(i.name)}<div class="muted" style="font-size:11px">${esc(i.category)}${cfg.mode==='fixed'?' · станд. '+incomeDesc(i):''}${fromReval?' · ↩ из переоценки остатка':''}${notCash?' · <span style="color:var(--amber)" title="Капитализируется в тело долга, деньгами не получено — не входит в «Доход за месяц», только в нереализованную прибыль">⚠ начислено, не получено</span>':''}</div></td>
+      <td><div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap"><input class="inp" style="width:220px;max-width:100%" type="${hideAmt?'password':'text'}" inputmode="text" value="${esc(''+iInput)}" placeholder="${hideAmt?'•••':'0 (можно 100*3+50)'}" oninput="setIncomeAmt('${i.id}',this.value)" onchange="render()" title="Можно выражением: + − × ÷ (напр. 100*3+50)"><select class="inp" style="width:66px;padding-left:6px;padding-right:2px" onchange="setIncomeCur('${i.id}',this.value)">${CURRENCIES.map(c=>`<option ${cur===c?'selected':''}>${c}</option>`).join('')}</select><span class="muted" style="font-size:11px" title="% реинвеста">♻</span><input class="inp" style="width:46px;padding:8px 4px;text-align:right" type="number" step="any" min="0" max="100" value="${(m.reinvest&&m.reinvest[i.id]!=null&&m.reinvest[i.id]!=='')?m.reinvest[i.id]:''}" placeholder="${S.reinvestTarget!=null?S.reinvestTarget:0}" oninput="setIncomeReinvest('${i.id}',this.value)" onchange="render()" title="% реинвеста этой статьи (остальное — на траты). Пусто = общий по умолчанию."><span class="muted" style="font-size:11px">%</span></div>${(()=>{const acc=m.incomeTo&&m.incomeTo[i.id];const reinv=(acc&&!isSpendAccount(acc))?(baseUSD||0):0;let s='';if(cur!=='USD')s+=`= ${fmt(baseUSD||0,k)} · `;if(baseUSD)s+=`<span class="${reinv>0?'pos':'muted'}">реинв ${fmt(reinv,k)}</span> · траты ${fmt((baseUSD||0)-reinv,k)}`;return s?`<div class="muted" style="font-size:10px;text-align:right">${s}</div>`:'';})()}</td>
+      <td>${(()=>{const needAcc=(baseUSD&&Math.abs(baseUSD)>0.01)&&!m.incomeTo[i.id];return `<select class="inp" style="max-width:150px${needAcc?';border-color:var(--red);box-shadow:0 0 0 2px var(--red-soft)':''}" onchange="setIncomeTo('${i.id}',this.value)">${acctOpts(m.incomeTo[i.id])}</select>`+(needAcc?`<div class="neg" style="font-size:10px">⚠ выбери счёт</div>`:'');})()}${(()=>{const acc=m.incomeTo[i.id]&&S.items.find(x=>x.id===m.incomeTo[i.id]);if(acc&&acc.currency&&acc.currency!=='USD'&&baseUSD){const amt=baseUSD*fxRate(acc.currency,k);return `<div class="muted" style="font-size:10px">≈ ${hideAmt?'•••':Math.round(amt).toLocaleString('ru-RU')} ${CUR_SYMBOL[acc.currency]||acc.currency} на счёт</div>`;}return '';})()}</td></tr>`;};
+  // группировка «Прибыли» по категориям (подзаголовки), порядок — по группам
+  const eCats=[...new Set(earners.map(i=>i.category))].sort((a,b)=>{const ga=GROUP_ORDER.indexOf((earners.find(i=>i.category===a)||{}).group),gb=GROUP_ORDER.indexOf((earners.find(i=>i.category===b)||{}).group);return ga-gb;});const eMulti=eCats.length>1;
+  let e1=eCats.map(c=>{const cItems=earners.filter(i=>i.category===c);
+    const hdr=eMulti?`<tr class="cat-row"><td colspan="3"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</td></tr>`:'';
+    return hdr+cItems.map(earnerRow).join('');}).join('');
+  const exArr=m.extra||[];
+  let exRows=exArr.map((e,idx)=>`<tr><td><input class="inp" value="${esc(e.name||'')}" placeholder="Зарплата, продажа, разовый" oninput="setExtra(${idx},'name',this.value)"><select class="inp" style="max-width:140px;margin-top:4px;font-size:12px" onchange="setExtra(${idx},'type',this.value)" title="Тип дохода"><option value="other" ${(e.type||'other')==='other'?'selected':''}>прочее</option><option value="passive" ${e.type==='passive'?'selected':''}>пассивный</option><option value="active" ${e.type==='active'?'selected':''}>активный</option><option value="capital" ${e.type==='capital'?'selected':''}>продажа имущества (не прибыль)</option></select>${e.type==='capital'?`<div class="muted" style="font-size:10px;margin-top:2px" title="Деньги зачислятся на счёт и войдут в чистый капитал, но не в «Доход за месяц»/«Пассивный доход» — это не прибыль, а обмен уже имевшегося имущества на деньги">не прибыль, только остаток счёта</div>`:''}</td>
+     <td><input class="inp" style="max-width:110px" type="${hideAmt?'password':'number'}" step="any" value="${e.amount??''}" placeholder="${hideAmt?'•••':'0'}" oninput="setExtra(${idx},'amount',this.value)"> <select class="inp" style="max-width:70px;display:inline-block" onchange="setExtra(${idx},'cur',this.value)">${CURRENCIES.map(c=>`<option ${(e.cur||'USD')===c?'selected':''}>${c}</option>`).join('')}</select></td>
+     <td>${(()=>{const exUSD=e.amount?toUSD(+e.amount,e.cur||'USD',k):0;const needAcc=Math.abs(exUSD)>0.01&&!e.to;return `<select class="inp" style="max-width:150px${needAcc?';border-color:var(--red);box-shadow:0 0 0 2px var(--red-soft)':''}" onchange="setExtra(${idx},'to',this.value)">${acctOpts(e.to)}</select> <button class="link-btn del" onclick="delExtra(${idx})">✕</button>`+(needAcc?`<div class="neg" style="font-size:10px">⚠ выбери счёт</div>`:'');})()}${(()=>{const acc=e.to&&S.items.find(x=>x.id===e.to);const exUSD=e.amount?toUSD(+e.amount,e.cur||'USD',k):0;if(acc&&acc.currency&&acc.currency!=='USD'&&exUSD){const amt=exUSD*fxRate(acc.currency,k);return `<div class="muted" style="font-size:10px">≈ ${Math.round(amt).toLocaleString('ru-RU')} ${CUR_SYMBOL[acc.currency]||acc.currency} на счёт</div>`;}return '';})()}</td></tr>`).join('');
+  secI+=`<div class="panel"><div class="panel-h"><h2>Прибыль за ${prev?mLabel(prev):'прошлый месяц'}</h2><div class="toolbar">${incomeNoAccount(k)?`<span class="chip r">⚠ без счёта: ${incomeNoAccount(k)}</span>`:''}<span class="muted" id="incTotal">пассивный ${fmt(passiveIncomeUSD(k),k)} · всего ${fmt(totalIncomeUSD(k),k)}</span></div></div>
+    <div class="panel-b" style="padding:11px 19px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-weight:600">♻️ Цель реинвеста:</span><input class="inp" style="width:74px" type="number" step="any" min="0" max="100" value="${S.reinvestTarget!=null?S.reinvestTarget:0}" oninput="setReinvest(this.value)" onchange="render()"><span class="muted">%</span></div>
+    <div class="scroll-x"><table><thead><tr><th>Источник</th><th>Доход · валюта · ♻ цель%</th><th>Куда зачислено</th></tr></thead><tbody>${e1}
+      <tr class="group-row"><td>Прочие доходы <button class="btn ghost sm" onclick="addExtra()">+ доход</button></td><td></td><td></td></tr>${exRows}
+    </tbody></table></div><div class="panel-b hint">Доход увеличивает баланс выбранного счёта. У крипты дохода нет (только рост цены).</div></div>`;
+
+  /* ===== ЧАСТЬ 2 — ОСТАТКИ НА 1-Е ЧИСЛО ===== */
+  // переводы / покупки
+  const toOpts=(sel)=>`<option value="">— куда —</option>`+GROUP_ORDER.flatMap(g=>S.items.filter(i=>i.group===g&&!isArch(i,k))).map(i=>`<option value="${i.id}" ${sel===i.id?'selected':''}>${esc(i.name)}</option>`).join('')+`<option value="__new__">➕ новая позиция…</option>`+spOpts(sel);
+  const sorted=movesOf(k).map((mv,idx)=>({mv,idx})).sort((a,b)=>((a.mv.date||'99')> (b.mv.date||'99')?1:-1));
+  let mvRows=sorted.map(({mv,idx})=>`<tr>
+     <td><input class="inp" style="max-width:130px" type="date" value="${mv.date||''}" onchange="setMove(${idx},'date',this.value)"></td>
+     <td><select class="inp" style="max-width:140px" onchange="setMove(${idx},'from',this.value)">${allOpts(mv.from)}</select></td>
+     <td style="text-align:center">→</td>
+     <td><select class="inp" style="max-width:140px" onchange="setMove(${idx},'to',this.value)">${toOpts(mv.to)}</select></td>
+     <td>${(()=>{const fromIt=mv.from&&S.items.find(x=>x.id===mv.from);const toIt=mv.to&&S.items.find(x=>x.id===mv.to);const cIt=(fromIt&&fromIt.byQty)?fromIt:((toIt&&toIt.byQty)?toIt:null);
+       if(cIt){const isBuy=!!(toIt&&toIt.byQty);const q=mv.qty??'';const px=(mv.px!=null&&mv.px!=='')?mv.px:(cryptoPrice(cIt.symbol,k)||'');
+         return `<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap"><input class="inp" style="width:66px" type="${hideAmt?'password':'text'}" inputmode="text" value="${esc(''+q)}" placeholder="${hideAmt?'•••':'кол'}" oninput="setMoveQP(${idx},'qty',this.value)" onchange="render()" title="Количество монет (можно писать через +)"><span class="muted" style="font-size:11px">×</span><input class="inp" style="width:60px" type="${hideAmt?'password':'number'}" step="any" value="${px}" placeholder="${hideAmt?'•••':'цена'}" oninput="setMoveQP(${idx},'px',this.value)" onchange="render()" title="Цена за монету, $"></div><div class="muted" style="font-size:10px">= ${fmt(+mv.amt||0,k)} · ${esc(cIt.symbol||'')} ${isBuy?'покупка':'продажа'}</div>`;}
+       const cur=mv.cur||'USD';const rate=moveRate(mv,k);const shownAmt=(mv.amt!=null&&mv.amt!=='')?Math.round((+mv.amt)*rate*100)/100:'';const amtExpr=mv.amtExpr||'';const amtInput=amtExpr!==''?amtExpr:(shownAmt===''?'':(''+shownAmt));let hints='';if(cur!=='USD')hints+=`<div class="muted" style="font-size:10px">= ${fmt(+mv.amt||0,k)}${mv.rate!=null&&mv.rate!==''?' · свой курс':''}</div>`;const accTo=mv.to&&S.items.find(x=>x.id===mv.to);if(accTo&&accTo.currency&&accTo.currency!=='USD'&&accTo.currency!==cur&&mv.amt)hints+=`<div class="muted" style="font-size:10px">≈ ${hideAmt?'•••':Math.round((+mv.amt)*fxRate(accTo.currency,k)).toLocaleString('ru-RU')} ${CUR_SYMBOL[accTo.currency]||accTo.currency}</div>`;const rateInput=cur!=='USD'?`<input class="inp" style="width:58px" type="number" step="any" value="${mv.rate!=null&&mv.rate!==''?mv.rate:Math.round(fxRate(cur,k)*10000)/10000}" oninput="setMoveRate(${idx},this.value)" onchange="render()" title="Курс сделки (${cur} за 1$). По умолчанию — курс месяца; впиши свой, если обменивал по другому.">`:'';return `<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap"><input class="inp" style="width:80px" type="${hideAmt?'password':'text'}" inputmode="text" value="${esc(''+amtInput)}" placeholder="${hideAmt?'•••':'0'}" oninput="setMoveAmt(${idx},this.value)" onchange="render()" title="Можно выражением: + − (напр. 100000+200000), дробные через точку или запятую"><select class="inp" style="width:62px;padding-left:6px;padding-right:2px" onchange="setMoveCur(${idx},this.value)">${CURRENCIES.map(c=>`<option ${cur===c?'selected':''}>${c}</option>`).join('')}</select>${rateInput}</div>${hints}`;})()}</td>
+     <td>${(()=>{const pAuto=movePnlAuto(mv);const override=mv.usherb!=null&&mv.usherb!=='';const val=override?+mv.usherb:pAuto;const shown=(override||pAuto!==0)?val:'';const col=val<0?';color:var(--liab)':val>0?';color:var(--asset)':'';return `<input class="inp" style="max-width:95px${col}" type="${hideAmt?'password':'number'}" step="any" value="${shown}" placeholder="—" oninput="setMove(${idx},'usherb',this.value)" title="Результат продажи/вывода (расчёт: сумма − цена покупки). Плюс = прибыль, минус = ущерб. Можно изменить; очистить — вернётся расчётный.">`;})()}</td>
+     <td><button class="link-btn del" onclick="delMove(${idx})">✕</button></td></tr>`).join('');
+  secM+=`<div class="panel"><div class="panel-h"><h2>Транзакции за ${mLabel(k)}</h2><button class="btn ghost sm" onclick="addMove()">+ транзакция</button></div>
+    <div class="panel-b"><div style="font-weight:600;margin-bottom:6px">Переводы, покупки, продажи</div>
+      <div class="scroll-x"><table><thead><tr><th>Дата</th><th>Откуда</th><th></th><th>Куда</th><th>Сумма</th><th>Приб./Убыток</th><th></th></tr></thead><tbody>${mvRows||'<tr><td class="muted" colspan="7">Нет транзакций. «+ транзакция» — покупка актива, продажа, перевод между счетами.</td></tr>'}</tbody></table></div></div></div>`;
+  // балансы по группам
+  const carriedQ=S.items.filter(i=>i.byQty&&!isArch(i,k)&&(m.qty[i.id]==null||m.qty[i.id]==='')&&itemQty(i.id,k)!=null);
+  if(carriedQ.length) secB+=`<div class="panel"><div class="panel-b" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 19px"><span class="muted" style="font-size:13px">↩ Кол-во ${carriedQ.length} крипто-позиций перенесено с прошлого месяца (не подтверждено — стоимость уже учитывается по текущей цене).</span><button class="btn ghost sm" onclick="confirmAllQty()">✓ Подтвердить всё</button></div></div>`;
+  GROUP_ORDER.forEach(g=>{
+    const items=S.items.filter(i=>i.group===g&&!isArch(i,k)&&!hideZeroItem(i,k));if(!items.length)return;
+    const isReserve=(g==='reserve'||g==='liability'); // долги тоже гасятся/растут транзакциями — тот же авто-расчёт + сверка, что у резервных счетов
+    const itemBalRow=(i)=>{
+      const pv=prev&&S.months[prev]?S.months[prev].values[i.id]:null;
+      if(i.byQty){const q=itemQty(i.id,k),px=cryptoPrice(i.symbol,k),vUSD=itemValUSD(i.id,k);const bq=m.buyq[i.id],bpx=m.buypx[i.id],sq=m.sellq[i.id],spx=m.sellpx[i.id];
+        const carried=(m.qty[i.id]==null||m.qty[i.id]==='')&&q!=null;
+        return `<tr${carried?' style="background:rgba(201,138,0,.06)"':''}><td><span class="dot" style="background:${catColor(i.category)}"></span>${esc(i.name)}<div class="muted" style="font-size:11px">${esc(i.symbol||'')} · $${px?px.toLocaleString('ru-RU'):'—'}</div></td>
+        ${(()=>{const qExpr=(m.qtyExpr&&m.qtyExpr[i.id])||'';const qVal=qExpr!==''?qExpr:(m.qty[i.id]??'');const qSum=/^.+[+\-].+$/.test(qExpr)&&parseExpr(qExpr)!=null;const qPh=hideAmt?'•••':(q!=null?q:'0');return `<td><input class="inp" style="max-width:110px" type="${hideAmt?'password':'text'}" inputmode="text" value="${esc(''+qVal)}" placeholder="${qPh}" oninput="setQty('${i.id}',this.value)" onchange="render()" title="Количество можно писать суммой через + (разные кошельки)"><div class="muted" style="font-size:10px">${qSum?'= '+(hideAmt?'•••':(m.qty[i.id]).toLocaleString('ru-RU'))+' · ':''}= ${fmt(vUSD,k)}${carried?` · <span class="tag" style="background:var(--amber);color:#fff;font-size:9px" title="Количество перенесено с прошлого месяца, вы его не подтверждали">↩ перенесено</span> <button class="link-btn" style="font-size:10px" onclick="confirmQty('${i.id}')">подтвердить</button>`:''}</div></td>`;})()}
+        <td colspan="2" class="muted" style="font-size:10px">покупка/продажа — во вкладке «🔄 Транзакции»</td></tr>`;}
+      if(isReserve){const auto=(m.values[i.id]==null||m.values[i.id]==='');const entered=itemValUSD(i.id,k),expected=accountExpectedUSD(i.id,k),diff=entered-expected,ok=Math.abs(diff)<1;
+        let st;
+        if(auto){st=`<span style="color:var(--green)">✓ авто</span>`;}
+        else if(i.spending){st=diff<-0.5?`<span class="neg">↓ расход ${fmt(-diff,k)}</span>`:(diff>0.5?`<span class="pos">+${fmt(diff,k)}?</span>`:`<span style="color:var(--green)">✓</span>`);}
+        else {st=ok?`<span style="color:var(--green)">✓ сходится</span>`:`<span class="neg" title="ожидалось ${fmt(expected,k)}">⚠ Δ ${fmt(diff,k)}</span>`;}
+        return `<tr${auto?' style="background:rgba(201,138,0,.06)"':''}><td><span class="dot" style="background:${catColor(i.category)}"></span>${esc(i.name)}${i.spending?' <span class="tag" style="background:var(--amber);color:#fff;font-size:9px">трачу</span>':''}<div class="muted" style="font-size:10px">${auto?'↩ авто: ':'ожид. '}${fmt(expected,k)}${auto?' <span class="tag" style="background:var(--amber);color:#fff;font-size:9px" title="Остаток посчитан сам: прошлый остаток + доход + транзакции. Введи число, только если фактический остаток отличается (тогда разница = расход/недостача).">из транзакций</span>':''}</div></td>
+        <td>${balInputHTML(i,k)}</td>
+        <td colspan="2">${st}</td></tr>`;}
+      if(i.group==='activity'||i.selfReinvest){const auto=(m.values[i.id]==null||m.values[i.id]==='');const invested=itemValUSD(i.id,k);
+        const isAct=i.group==='activity';const lbl=isAct?'вложено':'тело (с капитализацией %)';
+        const tip=isAct?'Вложено = переводы сюда + прибыль (доход, зачисленный на этот же счёт) − выводы. Прибыль без вывода: во вкладке «Прибыль» впиши доход и счёт-получатель = этот же счёт (↩ реинвест) — прибыль останется в банкролле и учтётся как активный доход.':'Тело = прошлый остаток + начисленные % (доход, зачисленный на эту же позицию) + переводы − выводы. Работает в обе стороны: либо впиши доход в «Прибыли» (счёт-получатель = эта же позиция) — остаток здесь посчитается сам; либо впиши остаток здесь явно — доход в «Прибыли» посчитается как разница (переоценка).';
+        return `<tr${auto?' style="background:rgba(214,64,159,.06)"':''}><td><span class="dot" style="background:${catColor(i.category)}"></span>${esc(i.name)}<div class="muted" style="font-size:10px">${lbl}${auto?' · ↩ из транзакций/дохода':''}</div></td>
+        <td>${balInputHTML(i,k)}</td>
+        <td colspan="2" class="muted" style="font-size:11px">${fmt(invested,k)}${auto?` <span class="tag" style="background:${isAct?GROUP_COLOR.activity:'#8a5bff'};color:#fff;font-size:9px" title="${tip}">авто</span>`:''}</td></tr>`;}
+      const cv=carriedVal(i.id,k);const carried=(m.values[i.id]==null||m.values[i.id]==='')&&cv!=null;const ph=cv!=null?cv:(pv!=null?pv:'0');
+      return `<tr${carried?' style="background:rgba(201,138,0,.06)"':''}><td><span class="dot" style="background:${catColor(i.category)}"></span>${esc(i.name)}<div class="muted" style="font-size:11px">${esc(i.category)}</div></td>
+        <td>${balInputHTML(i,k)}</td>
+        <td colspan="2" class="muted" style="font-size:11px">${fmt(itemValUSD(i.id,k),k)}${carried?' <span class="tag" style="background:var(--amber);color:#fff;font-size:9px" title="Значение перенесено из прошлого месяца. Введи своё, если изменилось.">↩ перенесено</span>':''}</td></tr>`;};
+    // группировка по категориям (подзаголовки), как в «Капитале»
+    const cats=[...new Set(items.map(i=>i.category))];const multi=cats.length>1;
+    const catsSorted=cats.map(c=>({c,v:items.filter(x=>x.category===c).reduce((s,x)=>s+itemValUSD(x.id,k),0)})).sort((a,b)=>b.v-a.v).map(x=>x.c);
+    let rows=catsSorted.map(c=>{const cItems=items.filter(i=>i.category===c);
+      const hdr=multi?`<tr class="cat-row"><td colspan="4"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)} <span class="muted" style="font-weight:400">· ${cItems.length}</span></td></tr>`:'';
+      return hdr+cItems.map(itemBalRow).join('');}).join('');
+    secB+=`<div class="panel"><div class="panel-h"><h2 style="color:${GROUP_COLOR[g]}">${GROUPS[g]}</h2><div class="toolbar"><button class="btn ghost sm" onclick="itemModal(null,'${g}')">+ позиция</button><span class="muted">${fmt(groupTotalUSD(g,k),k)}</span></div></div>
+      <div class="scroll-x"><table><thead><tr><th>Позиция</th><th>${isReserve?'Остаток':g==='activity'?'Вложено':'Стоимость / кол-во'}</th><th colspan="2">${isReserve?'Сверка':g==='activity'?'':'в $'}</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  });
+  // итоговая сверка
+  const exp=monthExpenseUSD(k), inc=totalIncomeUSD(k);
+  let un=0;accts.forEach(a=>{if(!a.spending){un+=(itemValUSD(a.id,k)-accountExpectedUSD(a.id,k));}});
+  const unOk=Math.abs(un)<1;const needsCheck=S.items.some(i=>(i.group==='reserve'||i.group==='activity'||i.group==='liability')&&!isArch(i,k)&&(!i.createdAt||k>=i.createdAt)&&(m.values[i.id]==null||m.values[i.id]===''));
+  const cs=cashSurplusUSD(k),over=cs<-0.5; // нарастающим итогом: доход минус расход за ВСЕ месяцы — переходит из месяца в месяц (как НП, только по кэшу, не по инвестициям)
+  secB+=`<div class="panel"><div class="panel-h"><h2>Итог сверки</h2><span class="chip ${needsCheck?'up':unOk?'g':'r'}">${needsCheck?'⚠ ввести счета':unOk?'✓ сходится':'⚠ несходится '+fmt(Math.abs(un),k)}</span></div>
+    <div class="panel-b" style="font-size:13.5px"><div style="display:grid;grid-template-columns:1fr auto;gap:5px 18px;max-width:420px">
+      <span class="muted">Доход за месяц</span><span class="pos" style="text-align:right">${fmt(inc,k)}</span>
+      <span class="muted">Расход (недостача на счёте трат)</span><span class="neg" style="text-align:right">${fmt(exp,k)}</span>
+      <span class="muted">Необъяснено на счетах</span><b class="${unOk?'':'neg'}" style="text-align:right">${fmt(un,k)}</b>
+      <span style="font-weight:600">${over?'🔻 Потрачено сверх дохода (всего)':'📈 Баланс дохода/расходов (всего)'}</span><b class="${over?'neg':'pos'}" style="text-align:right">${fmt(cs,k)}</b>
+    </div><div class="hint" style="margin-top:8px">Если счёт-«трачу» стал меньше ожидаемого — это расход. Если другой счёт не сходится — где-то не записан доход/перевод. Назначь счёт трат: в «Активы» открой счёт и поставь галку «Счёт для трат». <b>${over?'🔻 Потрачено сверх дохода':'📈 Баланс дохода/расходов'}</b> — нарастающим итогом за ВСЕ месяцы (доход минус расход), как нереализованная прибыль: ${over?'отрицательный остаток переходит на следующий месяц, пока не отработаешь обратно':'переходит из месяца в месяц, пока не потратишь больше дохода'}.</div></div></div>`;
+  const body=entrySub==='moves'?secM:entrySub==='balances'?secB:secI;
+  return head+nav+body;
+}
+function navM(d){const nk=shiftMonth(curMonth,d);
+  if(d>0){
+    const lm=latestMonth();if(lm&&nk>shiftMonth(lm,1)){toast('Сначала заполните текущий месяц');return;}
+    if(nk>thisMonth()){toast('Этот месяц ещё не наступил');return;} // нельзя создать/открыть календарно будущий месяц
+  }
+  curMonth=nk;render();try{ensureMonthCryptoPx(nk,{silent:true});}catch(e){}}
+function setV(id,f,val){mo(curMonth)[f][id]=val===''?null:+val;save();updTot();}
+// остаток: вводится в выбранной валюте, ХРАНИТСЯ в валюте позиции (для USD-позиций = в долларах)
+function setBalAmt(id,val){const it=S.items.find(x=>x.id===id);const m=mo(curMonth);const bcur=(m.valuesCur&&m.valuesCur[id])||(it?it.currency:'USD');m.valuesExpr=m.valuesExpr||{};
+  const num=parseExpr(val);
+  if(num==null){m.values[id]=null;m.valuesExpr[id]='';}else{m.valuesExpr[id]=(''+val);const usd=toUSD(num,bcur,curMonth);m.values[id]=it?usd*fxRate(it.currency,curMonth):usd;}
+  save();updTot();}
+function setBalCur(id,cur){const m=mo(curMonth);m.valuesCur=m.valuesCur||{};m.valuesCur[id]=cur;save();render();}
+// HTML поля ввода остатка (сумма в выбранной валюте + селектор; хранение — в валюте позиции)
+function balInputHTML(i,k){const m=mo(k);const bcur=(m.valuesCur&&m.valuesCur[i.id])||i.currency;const raw=m.values[i.id];
+  const toBcur=(vItemCur)=>Math.round(toUSD(+vItemCur,i.currency,k)*fxRate(bcur,k)*100)/100;
+  const shown=(raw!=null&&raw!=='')?toBcur(raw):'';
+  const expr=(m.valuesExpr&&m.valuesExpr[i.id])||'';const inputVal=(expr!==''?expr:(shown===''?'':(''+shown)));
+  const isSum=/^.+[+\-].+$/.test(expr)&&parseExpr(expr)!=null; // выражение с несколькими слагаемыми
+  const pvItem=(()=>{const p=prevExist(k);return (p&&S.months[p])?S.months[p].values[i.id]:null;})();const cv=carriedVal(i.id,k);
+  let ph;
+  if(isAutoAcct(i)){const eUSD=accountExpectedUSD(i.id,k);ph=Math.round(eUSD*fxRate(bcur,k)*100)/100;} // авто-остаток счёта / вложено / тело с капитализацией / долг = прошлый + доход + транзакции
+  else{const phSrc=(cv!=null?cv:(pvItem!=null?pvItem:null));ph=phSrc!=null?toBcur(phSrc):'0';}
+  if(hideAmt)ph='•••'; // плейсхолдер — обычный текст, type=password его не маскирует сам
+  return `<div style="display:flex;gap:5px;align-items:center"><input class="inp" style="width:110px" type="${hideAmt?'password':'text'}" inputmode="text" value="${esc(''+inputVal)}" placeholder="${ph}" oninput="setBalAmt('${i.id}',this.value)" onchange="render()" title="Можно писать суммой через + (напр. остаток на разных кошельках)"><select class="inp" style="width:64px;padding-left:6px;padding-right:2px" onchange="setBalCur('${i.id}',this.value)">${CURRENCIES.map(c=>`<option ${bcur===c?'selected':''}>${c}</option>`).join('')}</select></div>${(isSum||bcur!=='USD')?`<div class="muted" style="font-size:10px">${isSum?'= '+(hideAmt?'•••':(toBcur(raw)).toLocaleString('ru-RU'))+' '+bcur:''}${isSum&&bcur!=='USD'?' · ':''}${bcur!=='USD'?'= '+fmt(itemValUSD(i.id,k),k):''}</div>`:''}`;}
+// доход: вводится в выбранной валюте, ХРАНИТСЯ сразу в USD (по курсу месяца)
+function setIncomeAmt(id,val){const m=mo(curMonth);const it=S.items.find(x=>x.id===id);const cur=(m.incomeCur&&m.incomeCur[id])||(it?it.currency:'USD');m.incomeExpr=m.incomeExpr||{};const num=parseExpr(val);if(num==null){m.income[id]=null;m.incomeExpr[id]='';}else{m.incomeExpr[id]=(''+val);m.income[id]=toUSD(num,cur,curMonth);}save();updTot();}
+function setIncomeCur(id,cur){const m=mo(curMonth);m.incomeCur=m.incomeCur||{};m.incomeCur[id]=cur;save();render();}
+function setRate(v){mo(curMonth).rate=v===''?0:+v;save();}
+function setFund(id,v){mo(curMonth).funds[id]=v===''?null:+v;save();}
+function setCF(f,v){mo(curMonth).cashflow[f]=v===''?0:+v;save();}
+function addExtra(){moExtra(curMonth).push({name:'',amount:null,cur:display==='RUB'?'RUB':'USD'});save();render();}
+function setExtra(idx,f,v){const e=moExtra(curMonth)[idx];if(!e)return;e[f]=(f==='amount')?(v===''?null:+v):v;save();if(f==='to'||f==='cur'||f==='type')render();else updTot();}
+function delExtra(idx){const a=moExtra(curMonth);if(idx>=0&&idx<a.length){a.splice(idx,1);save();render();}}
+function updTot(){/* лёгкое обновление итога дохода без ре-рендера (иначе слетает фокус в поле) */const e=document.getElementById('incTotal');if(e)e.textContent='пассивный '+fmt(passiveIncomeUSD(curMonth),curMonth)+' · всего '+fmt(totalIncomeUSD(curMonth),curMonth);}
+
+/* ---------- FUNDS / CASH FLOW ---------- */
+function viewFunds(){
+  const k=curMonth;const m=mo(k);
+  let frows=S.fundAccounts.map(a=>{const v=m.funds[a.id];const usd=v==null?0:toUSD(v,a.currency,k);
+    return `<tr><td>${esc(a.name)}</td><td class="${usd<0?'neg':''}">${v==null?'<span class=muted>—</span>':fmt(usd,k)}</td><td class="muted">${a.currency}</td></tr>`;}).join('');
+  const funds=fundsTotalUSD(k);
+  const cf=m.cashflow;const bal=(cf.income||0)-(cf.expense||0);
+  // 50/30/20 plan on income
+  const inc=cf.income||0;
+  const plan=[['Жизнь / нужное',0.5],['Развлечения / стиль',0.3],['Будущее / инвестиции',0.2]];
+  let planRows=plan.map(([n,p])=>`<tr><td>${n}</td><td class="muted">${(p*100)|0}%</td><td>${fmt(inc*p,k)}</td></tr>`).join('');
+  return `<div class="panel"><div class="panel-h"><h2>Текущие средства</h2></div>
+    <div class="panel-b"><div class="card" style="box-shadow:none;border:none;padding:0;margin-bottom:8px"><div class="lbl">Доступно тратить</div><div class="val">${fmt(funds,k)}</div></div></div>
+    <div class="scroll-x"><table><thead><tr><th>Счёт</th><th>Баланс</th><th>Вал.</th></tr></thead><tbody>${frows||'<tr><td class=muted colspan=3>Нет счетов — добавьте на вкладке «Активы»</td></tr>'}</tbody></table></div></div>
+   <div class="two-col">
+    <div class="panel"><div class="panel-h"><h2>Доход / расход · ${mLabel(k)}</h2></div><div class="panel-b">
+      <div class="grid cards" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="card" style="box-shadow:none"><div class="lbl">Доход</div><div class="val pos" style="font-size:20px">${fmt(inc,k)}</div></div>
+        <div class="card" style="box-shadow:none"><div class="lbl">Расход</div><div class="val neg" style="font-size:20px">${fmt(cf.expense||0,k)}</div></div>
+        <div class="card" style="box-shadow:none"><div class="lbl">Сальдо</div><div class="val ${sign(bal)}" style="font-size:20px">${fmt(bal,k)}</div></div>
+      </div></div></div>
+    <div class="panel"><div class="panel-h"><h2>Бюджет 50 / 30 / 20</h2></div>
+      <div class="scroll-x"><table><thead><tr><th>Корзина</th><th>Доля</th><th>Сумма</th></tr></thead><tbody>${planRows}</tbody></table></div>
+      <div class="panel-b hint">От дохода за месяц. Настройте доли под себя позже.</div></div>
+   </div>`;
+}
+
+/* ---------- HISTORY ---------- */
+// удалить ПОСЛЕДНИЙ месяц целиком — напр. случайно созданный будущий месяц (нечаянный переход вперёд до фикса navM)
+function delMonthConfirm(k){
+  if(k!==latestMonth()){toast('Можно удалить только последний месяц');return;}
+  const m=S.months[k];
+  const hasData=m&&(Object.keys(m.values||{}).some(id=>m.values[id]!=null&&m.values[id]!=='')||Object.keys(m.income||{}).some(id=>m.income[id]!=null&&m.income[id]!=='')||(m.moves&&m.moves.length));
+  const msg=hasData?'В этом месяце есть введённые данные (остатки/доход/транзакции) — они будут потеряны безвозвратно.':'Месяц пустой (только авто-посчитанные значения) — безопасно удалить, если создан случайно.';
+  confirmModal(`Удалить ${mLabel(k)}?`,msg,()=>{
+    delete S.months[k];_monthListCache=null;
+    if(curMonth===k)curMonth=latestMonth()||thisMonth();
+    save();render();toast('Месяц удалён');
+  });
+}
+function viewHistory(){
+  const ks=monthList();if(!ks.length)return empty('Пусто','Нет данных.','Ввод',"setTab('entry')");
+  const lm=latestMonth();
+  let rows=ks.slice().reverse().map(k=>{const nw=netWorthUSD(k),pv=prevExist(k),chg=pv?nw-netWorthUSD(pv):null;
+    // «Прибыль за k» вводится и хранится в бакете СЛЕДУЮЩЕГО месяца (экран «Заполнить месяц» подписан «за прошлый месяц»,
+    // но пишет в текущий curMonth) — поэтому доход «за k» нужно читать из shiftMonth(k,1), а не из самого k.
+    const nextK=shiftMonth(k,1);const incShown=S.months[nextK]?fmt(totalIncomeUSD(nextK),k):'—';
+    const cs=cashSurplusUSD(k);const csShown=(k>=(S.cashflowStartMonth||'2026-09'))?fmt(cs,k):'—';
+    const mtm=unrealizedMTMUSD(k);
+    const np=investmentNpState(k).unreal;
+    return `<tr><td><a class="link-btn" onclick="curMonth='${k}';setTab('capital')">${mLabel(k)}</a></td>
+      <td>${fmt(groupTotalUSD('asset',k),k)}</td><td>${fmt(groupTotalUSD('passive',k),k)}</td><td class="neg">${fmt(groupTotalUSD('liability',k),k)}</td>
+      <td><b>${fmt(nw,k)}</b></td><td class="${chg!=null?sign(chg):'muted'}">${chg!=null?fmt(chg,k):'—'}</td>
+      <td class="pos">${incShown}</td><td class="${cs<0?'neg':'muted'}">${csShown}</td>
+      <td class="${sign(mtm)}">${fmt(mtm,k)}</td><td class="${sign(np)}">${fmt(np,k)}</td>
+      <td class="muted">${S.months[k].rate||''}</td>
+      <td>${k===lm?`<button class="link-btn del" onclick="delMonthConfirm('${k}')" title="Удалить этот месяц целиком (напр. случайно созданный будущий месяц)">✕</button>`:''}</td></tr>`;}).join('');
+  return `<div class="panel"><div class="panel-h"><h2>История по месяцам</h2><button class="btn ghost sm" onclick="exportCSV()">⤓ CSV</button></div>
+    <div class="scroll-x"><table><thead><tr><th>Месяц</th><th>Активы</th><th>Пассивы</th><th>Обязат.</th><th>Чистый капитал</th><th>Δ</th><th>Доход</th><th title="Нарастающим итогом с месяца начала учёта (Настройки→«Доход и расход»)">Баланс дох/расх</th><th title="Продать всё сейчас, от цены покупки/первой известной">Нереализ. прибыль (рынок)</th><th title="Реинвест-дисциплина: цель% минус то, что реально выведено на траты">НП инвестиции</th><th>Курс</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+/* ---------- MANAGE ---------- */
+function viewManage(){
+  let html='';
+  const k=latestMonth();
+  const unusedN=k?S.items.filter(i=>!i.archivedAt&&Math.abs(itemValUSD(i.id,k))<0.5&&monthIncomeUSD(i.id,k)===0).length:0;
+  html+=`<div class="panel"><div class="panel-b toolbar" style="padding:12px 19px"><button class="btn ghost sm" onclick="itemModal(null,'asset')">+ Позиция</button><button class="btn ghost sm" onclick="archiveUnused()"${unusedN?'':' disabled style="opacity:.5"'}>📥 Архивировать неиспользуемые${unusedN?' · '+unusedN:''}</button></div></div>`;
+  const itemRow=i=>`<tr><td><span class="dot" style="background:${catColor(i.category)}"></span>${esc(i.name)}${i.group==='reserve'?(i.spending?' <span class="tag" style="background:var(--amber);color:#fff;font-size:9px">🛒 трачу</span>':' <span class="tag reserve" style="font-size:9px">💰 коплю</span>'):''}</td><td class="muted">${i.currency}</td>
+      <td><button class="link-btn" onclick="itemModal('${i.id}')">Изм.</button> <button class="link-btn" style="color:var(--muted)" onclick="archiveItem('${i.id}')" title="В архив — скрыть, сохранив историю">📥 архив</button> <button class="link-btn del" onclick="delItem('${i.id}')">×</button></td></tr>`;
+  GROUP_ORDER.forEach(g=>{
+    const items=S.items.filter(i=>i.group===g&&!i.archivedAt);
+    // сортировка по категориям (как в «Капитале»): подзаголовок категории + её позиции
+    const cats=[...new Set(items.map(i=>i.category))].sort((a,b)=>a.localeCompare(b,'ru'));
+    let rows=cats.map(c=>{const cItems=items.filter(i=>i.category===c);
+      return `<tr class="cat-row"><td colspan="3"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)} <span class="muted" style="font-weight:400">· ${cItems.length}</span></td></tr>`+cItems.map(itemRow).join('');}).join('');
+    html+=`<div class="panel"><div class="panel-h"><h2 style="color:${GROUP_COLOR[g]}">${GROUPS[g]}</h2><button class="btn sm" onclick="itemModal(null,'${g}')">+ Позиция</button></div>
+      <div class="scroll-x"><table><tbody>${rows||'<tr><td class=muted>Пусто</td></tr>'}</tbody></table></div></div>`;
+  });
+  const arch=S.items.filter(i=>i.archivedAt);
+  if(arch.length){
+    let arows=arch.map(i=>`<tr><td><span class="dot" style="background:${catColor(i.category)}"></span>${esc(i.name)}</td><td class="muted" style="text-align:left">${esc(i.category)}</td><td class="muted">в архиве с ${mLabel(i.archivedAt)}</td>
+      <td><button class="link-btn" onclick="unarchiveItem('${i.id}')" title="Вернуть в активные">↩ вернуть</button> <button class="link-btn del" onclick="delItem('${i.id}')">×</button></td></tr>`).join('');
+    html+=`<div class="panel"><div class="panel-h"><h2 class="muted">📦 Архив · ${arch.length}</h2></div>
+      <div class="panel-b hint" style="padding-bottom:0">Архивные скрыты из ввода и текущего капитала, но их история сохранена и учитывается в статистике/графиках за прошлые месяцы.</div>
+      <div class="scroll-x"><table><tbody>${arows}</tbody></table></div></div>`;
+  }
+  let cats=S.categories.map((c,idx)=>`<span class="pill" style="cursor:pointer" onclick="catModal(${idx})" title="Нажми, чтобы переименовать/перекрасить"><span class="dot" style="background:${c.color}"></span>${esc(c.name)} <span class="muted">(${GROUPS[c.group].split(' ')[0].toLowerCase()})</span> <button class="x" style="font-size:14px;padding:0 3px" onclick="event.stopPropagation();delCatIdx(${idx})">×</button></span>`).join(' ');
+  html+=`<div class="panel"><div class="panel-h"><h2>Категории</h2><button class="btn ghost sm" onclick="catModal()">+ Категория</button></div><div class="panel-b" style="display:flex;gap:8px;flex-wrap:wrap">${cats}</div></div>`;
+  return html;
+}
+
+/* ---------- SETTINGS ---------- */
+function setFx(c,v){if(!S.fx)S.fx={};S.fx[c]=v===''?'':+v;save();}
+function setFxAdjust(c,v){if(!S.fxAdjust)S.fxAdjust={};S.fxAdjust[c]=v===''?'':+v;save();}
+function setFxEnabled(c,v){if(!S.fxEnabled)S.fxEnabled={};S.fxEnabled[c]=!!v;save();}
+// пересчитать уже ЗАФИКСИРОВАННЫЕ курсы прошлых месяцев с учётом текущей поправки. Безопасно для повторного
+// запуска (напр. если поправку потом подправите) — всегда считает от ИСХОДНОГО (до поправки) курса в
+// m.fxRaw/m.rateRaw, а не от уже скорректированного m.fx/m.rate, иначе каждый прогон удваивал бы поправку.
+// Месяцы, зафиксированные ДО появления этой фичи, не имеют fxRaw — тогда текущее m.fx и есть исходное
+// (поправки тогда не было), берём его как базу и запоминаем на будущее.
+function reapplyFxAdjust(){
+  if(!S.fxAdjust)return 0;
+  let n=0;
+  monthList().forEach(k=>{
+    const m=S.months[k];if(!m)return;
+    if(S.fxAdjust.RUB&&m.rate!=null){
+      if(m.rateRaw==null)m.rateRaw=+m.rate;
+      m.rate=+m.rateRaw*(1+(+S.fxAdjust.RUB)/100);n++;
+    }
+    if(m.fx){
+      m.fxRaw=m.fxRaw||{};
+      Object.keys(m.fx).forEach(c=>{
+        if(!S.fxAdjust[c])return;
+        if(m.fxRaw[c]==null)m.fxRaw[c]=+m.fx[c];
+        m.fx[c]=+m.fxRaw[c]*(1+(+S.fxAdjust[c])/100);n++;
+      });
+    }
+  });
+  save();return n;
+}
+// исторический курс USD→cur на конкретную дату (ECB reference через frankfurter.dev, бесплатно без ключа,
+// покрывает основные валюты; на выходных/праздниках отдаёт ближайший будний день — для наших целей норм)
+async function fetchHistoricalFxOnDate(dateStr,cur){
+  try{const r=await fetch(`https://api.frankfurter.dev/v1/${dateStr}?from=USD&to=${cur}`,{cache:'no-store'});
+    const j=await r.json();const v=j&&j.rates&&j.rates[cur];return v!=null?+v:null;}catch(e){return null;}}
+// зафиксировать курс cur в месяце k, если ещё не зафиксирован — подтягивает историческую дату (1-е число),
+// кэширует в m.fx/m.fxRaw (та же пара полей, что и у обычной автозагрузки — reapplyFxAdjust их тоже видит)
+async function ensureMonthFxHistorical(k,cur){
+  if(cur==='USD'||cur==='USDT')return 1;
+  const m=mo(k);
+  if(m.fx&&m.fx[cur]!=null&&m.fx[cur]!=='')return +m.fx[cur];
+  const v=await fetchHistoricalFxOnDate(k+'-01',cur);
+  await new Promise(r=>setTimeout(r,300)); // троттлинг — только когда реально ходили в сеть
+  if(v!=null){m.fx=m.fx||{};m.fxRaw=m.fxRaw||{};m.fx[cur]=v;m.fxRaw[cur]=v;save();return v;}
+  return null;
+}
+// без своего зафиксированного курса месяц показывает ОДИН И ТОТ ЖЕ «запасной» курс (ближайший найденный ГДЕ
+// УГОДНО в истории, не обязательно рядом по времени — см. fxRate()) вместо актуального на свою дату. Это и
+// заметил юзер: позиция в THB с перенесённым значением показывала одинаковый $-эквивалент много месяцев
+// подряд. Бэкафилл — та же идея, что ensureMonthCryptoPx/backfillMonthlyCryptoPx, но для валютных курсов.
+async function backfillMonthlyFx(){
+  const ks=monthList();if(!ks.length){toast('Нет месяцев');return;}
+  // только реально используемые позициями валюты — иначе при десятках месяцев это лишние сотни запросов
+  // (видел юзер: ~1.5 мин на 59 мес × 5 валют) ради валют, которых ни у одной позиции и нет
+  const used=new Set(S.items.map(i=>i.currency));
+  const curs=FX_FETCH_CURRENCIES.filter(c=>(!S.fxEnabled||S.fxEnabled[c]!==false)&&used.has(c));
+  if(!curs.length){toast('Нет включённых валют, которые реально используются в позициях');return;}
+  toast('Восстанавливаю курсы по месяцам ('+curs.join(', ')+')… это займёт время');
+  for(const k of ks)for(const c of curs)await ensureMonthFxHistorical(k,c);
+  render();toast('Готово: курсы валют зафиксированы по месяцам');
+}
+// смена валюты позиции С ПЕРЕСЧЁТОМ истории (не просто переименование поля): каждое уже введённое значение
+// месяца переводится в $ по курсу СТАРОЙ валюты за тот месяц, затем — в новую валюту по курсу той же даты
+// (исторический курс подтягивается автоматически, если за этот месяц ещё не зафиксирован). Без этого смена
+// валюты просто переинтерпретирует старые числа без конвертации — ровно баг, который поймал юзер на реальной позиции.
+async function convertItemCurrency(id,newCur){
+  const it=S.items.find(x=>x.id===id);if(!it)return{changed:0,failed:0};
+  const oldCur=it.currency;if(oldCur===newCur)return{changed:0,failed:0};
+  const ks=monthList().filter(k=>{const v=itemVal(id,k);return v!=null&&v!=='';});
+  let changed=0,failed=0;
+  for(const k of ks){
+    const raw=itemVal(id,k);
+    const usd=toUSD(+raw,oldCur,k);
+    let rate=(newCur==='USD'||newCur==='USDT')?1:await ensureMonthFxHistorical(k,newCur);
+    if(rate==null){rate=fxRate(newCur,k);failed++;} // точную историческую не нашли — обычный фолбэк (ближайшая зафиксированная/дефолт)
+    const m=mo(k);m.values[id]=usd*rate;
+    if(m.valuesExpr)m.valuesExpr[id]=''; // старое выражение было в прежней валюте — больше не соответствует числу
+    changed++;
+  }
+  it.currency=newCur;save();
+  return{changed,failed};
+}
+function convertItemCurrencyModal(id){
+  const it=S.items.find(x=>x.id===id);if(!it)return;
+  const opts=CURRENCIES.filter(c=>c!==it.currency);
+  modal('Сменить валюту (с пересчётом истории)',`
+    <div class="hint" style="margin-bottom:10px">Текущая валюта: <b>${it.currency}</b>. Каждое уже введённое по месяцам значение переводится в $ по курсу СТАРОЙ валюты на тот месяц, затем — в новую валюту по курсу той же даты (историю курса подтянет автоматически, если ещё не зафиксирована). Необратимо — сделайте бэкап перед этим, если не уверены.</div>
+    <div class="field"><label>Новая валюта</label><select class="inp" id="ccvCur">${opts.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div>`,
+    async()=>{
+      const newCur=document.getElementById('ccvCur').value;
+      toast('Пересчитываю историю…');
+      const res=await convertItemCurrency(id,newCur);
+      assetDetail(id); // перестраивает modal-root сам — возвращаем false, чтобы обёртка modal() не закрыла его поверх свежего рендера
+      toast(`Готово: пересчитано месяцев — ${res.changed}${res.failed?`, из них без точной истории курса — ${res.failed}`:''}`);
+      return false;
+    });
+}
+function reapplyFxAdjustConfirm(){
+  const curs=Object.keys(S.fxAdjust||{}).filter(c=>S.fxAdjust[c]);
+  if(!curs.length){toast('Сначала впишите поправку хотя бы для одной валюты');return;}
+  confirmModal('Применить поправку к истории?',`Пересчитает уже зафиксированные курсы прошлых месяцев (${curs.join(', ')}) с учётом поправки. Можно запускать повторно (напр. если измените процент позже) — пересчёт всегда идёт от исходного курса, без повторного домножения.`,()=>{
+    const n=reapplyFxAdjust();render();toast(n?`Пересчитано: ${n}`:'Нечего пересчитывать');
+  });
+}
+/* авто-загрузка актуальных курсов (open.er-api.com, USD-based, CORS ok, без ключа) */
+/* ---- живые цены крипты (coingecko) ---- */
+function cryptoPrice(sym,k){const m=S.months[k];if(m&&m.px&&m.px[sym]!=null&&m.px[sym]!=='')return +m.px[sym]; // зафиксированная цена месяца
+  const lm=latestMonth();if((!lm||k>=lm)&&S.cryptoPx&&S.cryptoPx[sym]!=null&&S.cryptoPx[sym]!=='')return +S.cryptoPx[sym]; // живая цена только для текущего/будущего месяца
+  const ks=monthList().filter(x=>x<=k).reverse();for(const x of ks){const mm=S.months[x];if(mm.px&&mm.px[sym]!=null&&mm.px[sym]!=='')return +mm.px[sym];}
+  return 0;}
+function itemQty(id,k){const ks=monthList().filter(x=>x<=k).reverse();for(const x of ks){const m=S.months[x];if(m.qty&&m.qty[id]!=null&&m.qty[id]!=='')return +m.qty[id];}return null;}
+function cryptoPxUpdatedLabel(){if(!S.cryptoPxUpdated)return'не загружались';try{const d=new Date(S.cryptoPxUpdated);return('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}catch(e){return'';}}
+async function fetchCryptoPrices(opts){opts=opts||{};const silent=opts.silent;
+  const syms=[...new Set(S.items.filter(i=>i.byQty&&i.symbol).map(i=>i.symbol))];
+  if(!syms.length){if(!silent)toast('Нет крипто-позиций по количеству');return false;}
+  const ids=syms.map(s=>COINGECKO[s]).filter(Boolean).join(',');
+  if(!silent)toast('Загружаю цены крипты…');
+  try{const r=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,{cache:'no-store'});const j=await r.json();
+    if(!S.cryptoPx)S.cryptoPx={};let n=0;
+    syms.forEach(s=>{const id=COINGECKO[s];if(id&&j[id]&&j[id].usd){S.cryptoPx[s]=j[id].usd;n++;}});
+    S.cryptoPxUpdated=nowTs();
+    if(opts.stamp){const m=mo(opts.stamp);m.px=m.px||{};syms.forEach(s=>{if(S.cryptoPx[s])m.px[s]=S.cryptoPx[s];});}
+    save();if(!silent){render();toast('Цены обновлены'+(opts.stamp?', зафиксированы в '+mLabel(opts.stamp):''));}else if(tab==='settings'||tab==='entry'||tab==='capital'||tab==='dash')render();
+    return true;
+  }catch(e){if(!silent)toast('Не удалось (coingecko/CORS)');return false;}
+}
+// цена монеты НА ДАТУ (история coingecko) — чтобы курс месяца был «на 1-е число», а не живой на момент захода
+async function fetchCryptoPriceOnDate(sym,dateStr){const id=COINGECKO[sym];if(!id)return null;
+  const[y,mo_,d]=dateStr.split('-');
+  try{const r=await fetch(`https://api.coingecko.com/api/v3/coins/${id}/history?date=${d}-${mo_}-${y}&localization=false`,{cache:'no-store'});
+    const j=await r.json();const p=j&&j.market_data&&j.market_data.current_price&&j.market_data.current_price.usd;
+    return p!=null?+p:null;}catch(e){return null;}}
+// зафиксировать курс месяца k на 1-е число (для всех монет, у кого ещё нет m.px) — не трогает уже зафиксированные
+async function ensureMonthCryptoPx(k,opts){opts=opts||{};
+  const syms=[...new Set(S.items.filter(i=>i.byQty&&i.symbol).map(i=>i.symbol))];if(!syms.length)return;
+  const m=mo(k);m.px=m.px||{};const missing=syms.filter(s=>m.px[s]==null||m.px[s]==='');if(!missing.length)return;
+  for(const s of missing){const p=await fetchCryptoPriceOnDate(s,k+'-01');if(p!=null){m.px[s]=p;save();}await new Promise(r=>setTimeout(r,1300));}
+  if(!opts.silent){render();toast('Курс '+mLabel(k)+' зафиксирован на 1-е число');}
+  else if(tab==='dash'||tab==='capital'||tab==='entry')render();}
+// восстановить «на 1-е число» для ВСЕХ месяцев, где курс ещё не зафиксирован (разово, после перехода на эту схему)
+async function backfillMonthlyCryptoPx(){const ks=monthList();if(!ks.length){toast('Нет месяцев');return;}
+  toast('Восстанавливаю курсы по месяцам… это займёт время');
+  for(const k of ks)await ensureMonthCryptoPx(k,{silent:true});
+  save();render();toast('Готово: курсы по месяцам зафиксированы на 1-е число');}
+async function fetchRates(opts){opts=opts||{};const silent=opts.silent;
+  // по умолчанию (если вызывающий явно не передал stamp) фиксируем курс в ТЕКУЩИЙ месяц — и обычная кнопка «Обновить»
+  // в Настройках, и автообновление раз в 12ч теперь сами закрепляют курс «на начало месяца», как уже сделано для цен крипты
+  const stamp=opts.stamp!==undefined?opts.stamp:(latestMonth()||thisMonth());
+  if(!silent)toast('Загружаю курсы…');
+  try{
+    const r=await fetch('https://open.er-api.com/v6/latest/USD',{cache:'no-store'});const j=await r.json();
+    if(!j||!j.rates){if(!silent)toast('Курсы недоступны');return false;}
+    if(!S.fx)S.fx={};
+    // поправка на реальный курс обмена (P2P/обменник отличается от официального межбанковского) — настраивается
+    // в Настройках на валюту (юзер сверил свой реальный курс с официальным за тот же период и нашёл стабильное
+    // отклонение) — коэффициент применяется тут
+    const adj=c=>1+((S.fxAdjust&&S.fxAdjust[c])?+S.fxAdjust[c]:0)/100;
+    const enabled=c=>!S.fxEnabled||S.fxEnabled[c]!==false; // галочка в Настройках — не тянуть ненужные валюты автообновлением
+    FX_FETCH_CURRENCIES.forEach(c=>{if(j.rates[c]&&enabled(c))S.fx[c]=+j.rates[c]*adj(c);});
+    S.fxUpdated=(j.time_last_update_unix?j.time_last_update_unix*1000:nowTs());
+    if(stamp){const m=mo(stamp);m.rate=+S.fx.RUB;m.rateRaw=j.rates.RUB!=null?+j.rates.RUB:m.rateRaw;m.fx=m.fx||{};m.fxRaw=m.fxRaw||{};
+      ['EUR','THB','VND','KZT','IDR'].filter(enabled).forEach(c=>{if(S.fx[c])m.fx[c]=+S.fx[c];if(j.rates[c]!=null)m.fxRaw[c]=+j.rates[c];});} // fxRaw/rateRaw — курс ДО поправки, нужен чтобы reapplyFxAdjust() мог пересчитать без повторного домножения
+    save();if(!silent){render();toast('Курсы обновлены'+(stamp?', зафиксированы в '+mLabel(stamp):''));}else if(tab==='settings'||tab==='entry'){render();}
+    return true;
+  }catch(e){if(!silent)toast('Не удалось загрузить (нет сети)');return false;}
+}
+function autoFetchRates(){try{if(nowTs()-(S.fxUpdated||0)>12*3600*1000)fetchRates({silent:true});}catch(e){}}
+function fxUpdatedLabel(){if(!S.fxUpdated)return'ещё не загружались';try{const d=new Date(S.fxUpdated);return('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+d.getFullYear();}catch(e){return'';}}
+function setReinvest(v){S.reinvestTarget=(v===''?0:Math.max(0,Math.min(100,+v)));save();}
+function setCashflowStart(v){S.cashflowStartMonth=v||'2026-09';save();render();}
+function viewSettings(){
+  return `<div class="panel"><div class="panel-h"><h2>Приватность</h2></div><div class="panel-b">
+     <div class="hint" style="margin-bottom:10px">Пароль перед показом сумм (👁 в шапке): скрыть можно всегда без пароля, а вот показать — только зная его. ${S.hideAmtHash?'<b>Сейчас защита включена.</b>':'Сейчас без пароля — любой может нажать 👁.'}</div>
+     <button class="btn ghost sm" onclick="setHideAmtPassword()">${S.hideAmtHash?'🔑 Сменить/убрать пароль':'🔑 Задать пароль'}</button>
+   </div></div>
+   <div class="panel"><div class="panel-h"><h2>Валюты и курсы</h2><span class="muted">курсы от ${fxUpdatedLabel()} <button class="btn ghost sm" onclick="fetchRates()">🔄 Обновить</button></span></div><div class="panel-b">
+     <div class="hint" style="margin-bottom:10px">Значения можно вносить в любой валюте — у каждой позиции, счёта и «прочего дохода» своя. Всё пересчитывается в доллары. Сколько единиц валюты за <b>1&nbsp;$</b>:</div>
+     ${FX_FETCH_CURRENCIES.map(c=>{const on=!S.fxEnabled||S.fxEnabled[c]!==false;return `<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:5px;cursor:pointer" title="Подтягивать этот курс автообновлением (кнопка «Обновить» / фон раз в 12ч)"><input type="checkbox" ${on?'checked':''} onchange="setFxEnabled('${c}',this.checked)"></label><span style="width:52px">1 $ =</span><input class="inp" style="max-width:150px" type="number" step="any" value="${(S.fx&&S.fx[c]!=null&&S.fx[c]!=='')?S.fx[c]:DEFAULT_FX[c]}" oninput="setFx('${c}',this.value)"><span class="muted">${c} ${CUR_SYMBOL[c]}</span><input class="inp" style="max-width:80px" type="number" step="any" placeholder="0" value="${(S.fxAdjust&&S.fxAdjust[c]!=null&&S.fxAdjust[c]!=='')?S.fxAdjust[c]:''}" oninput="setFxAdjust('${c}',this.value)" title="Поправка на ваш реальный курс обмена (P2P/обменник), %. Применяется при автозагрузке: курс×(1+поправка/100)"><span class="muted">поправка %</span></div>`;}).join('')}
+     <div class="hint" style="margin-top:8px">Рубль: курс фиксируется отдельно за каждый месяц (во вкладке «Заполнить месяц») и дальше не меняется; тут — курс по умолчанию для новых месяцев. «Поправка» — разница между официальным курсом и тем, что реально получаете при конвертации (обычно отрицательная) — применяется только при нажатии «Обновить»/автообновлении, на курс, введённый вручную, не влияет.</div>
+     <button class="btn ghost sm" style="margin-top:10px" onclick="reapplyFxAdjustConfirm()">↻ Применить поправку к истории</button>
+     <div class="hint" style="margin-top:6px">Пересчитывает курсы уже зафиксированных прошлых месяцев с учётом поправки выше (не трогает курсы, введённые вручную). Можно нажимать повторно, если поправку потом измените.</div>
+     <button class="btn ghost sm" style="margin-top:10px" onclick="backfillMonthlyFx()">📥 Восстановить курсы по месяцам (на 1-е число)</button>
+     <div class="hint" style="margin-top:6px">Без этого месяцы без СВОЕГО зафиксированного курса (напр. позиция завели в THB, а автообновление курса ни разу не фиксировалось в тот месяц) показывают один и тот же «запасной» курс для всех месяцев подряд вместо актуального на ту дату. Подтягивает исторический курс (frankfurter.dev) на 1-е число для каждого месяца без своего курса — не трогает уже зафиксированные.</div>
+   </div></div>
+   <div class="panel"><div class="panel-h"><h2>Цены крипты</h2><span class="muted">${cryptoPxUpdatedLabel()} <button class="btn ghost sm" onclick="fetchCryptoPrices()">🔄 Обновить</button></span></div><div class="panel-b">
+     ${(()=>{const syms=[...new Set(S.items.filter(i=>i.byQty&&i.symbol).map(i=>i.symbol))];if(!syms.length)return '<div class="hint">Нет крипто-позиций «по количеству».</div>';
+      return syms.map(s=>`<div style="display:flex;gap:12px;align-items:center;margin-bottom:6px"><span style="width:56px;font-weight:600">${esc(s)}</span><span>$${(S.cryptoPx&&S.cryptoPx[s]!=null)?(+S.cryptoPx[s]).toLocaleString('ru-RU',{maximumFractionDigits:4}):'—'}</span></div>`).join('');})()}
+     <div class="hint" style="margin-top:6px">Живая цена — только для справки здесь. <b>Для расчёта стоимости по месяцам курс фиксируется на 1-е число месяца</b> (автоматически, история coingecko) и дальше не меняется, пока месяц открыт/закрыт — живая цена на него больше не влияет.</div>
+     <button class="btn ghost sm" style="margin-top:8px" onclick="backfillMonthlyCryptoPx()">📥 Восстановить курсы по месяцам (на 1-е число)</button>
+   </div></div>
+   <div class="panel"><div class="panel-h"><h2>Доход и расход</h2></div><div class="panel-b">
+     <div class="field"><label>Считать «Баланс дохода/расходов» начиная с месяца</label><input class="inp" style="max-width:150px" type="month" value="${S.cashflowStartMonth||'2026-09'}" oninput="setCashflowStart(this.value)"></div>
+     <div class="hint">Нарастающий итог (доход минус расход) на дашборде и в «Итог сверки» считается только начиная с этого месяца — более ранние месяцы, где доход/расход системно не вносился, не искажают сумму.</div>
+   </div></div>
+   <div class="panel"><div class="panel-h"><h2>Данные</h2><span class="muted" id="syncStatus" style="font-size:11.5px">${syncStatusText()}</span></div><div class="panel-b">
+     <div class="toolbar" style="margin-bottom:12px">
+       <button class="btn ghost" onclick="connectFile()" title="Автосохранение в файл (Chrome/Edge): выбери файл один раз — дальше всё пишется само">🔗 Файл</button>
+       <button class="btn ghost" onclick="exportJSON()">⤓ Бэкап .json</button>
+       <button class="btn ghost" onclick="copyBackupToClipboard()" title="Надёжнее, чем скачивание файла — особенно внутри Telegram, где скачивание часто не работает">📋 Копировать бэкап</button>
+       <button class="btn ghost" onclick="document.getElementById('imp').click()">⤒ Загрузить файл</button>
+       <button class="btn ghost" onclick="pasteImport()">⤒ Вставить JSON</button>
+       <button class="btn ghost" onclick="exportCSV()">⤓ История .csv</button>
+       ${CLOUD?'<button class="btn ghost" onclick="cloudPush()">☁ Синхронизировать</button><button class="btn ghost" onclick="clearCloudConfirm()">🗑 Очистить облако</button>':''}</div>
+     ${CLOUD?'<div class="hint" style="margin-bottom:16px">Данные лежат в CloudStorage этого Telegram-бота (привязаны к твоему аккаунту и именно этому боту, больше никто их не видит) — автоматически синхронизируются между устройствами при каждой правке + доп. проверка раз в 30 сек. «Очистить облако» — удалить эту копию насовсем (локальные данные на устройстве останутся).</div>'
+       :(fileHandle?`<div class="hint" style="margin-bottom:16px">Данные сохраняются в файл «${esc(fileHandle.name)}» на этом устройстве (плюс кэш в браузере). Если сменишь устройство/браузер — перенеси через этот файл или «⤓ Бэкап».</div>`
+       :'<div class="hint" style="margin-bottom:16px">Данные хранятся только в этом браузере (localStorage) — нигде больше. Делайте бэкап регулярно или подключи «🔗 Файл».</div>')}
+     <button class="btn danger sm" onclick="resetAll()">Стереть всё</button></div></div>
+   ${IN_TG?`<div class="panel"><div class="panel-h"><h2>Диагностика Telegram</h2></div><div class="panel-b">
+     <div class="hint">platform: ${esc(TG.platform||'?')} · Bot API: ${esc(TG.version||'?')} · fullscreen: ${TG.isFullscreen?'да':'нет'} · verticalSwipes: ${TG.isVerticalSwipesEnabled===false?'выключен':'включён'}</div>
+   </div></div>`:''}`;
+}
+
+/* ---------- charts ---------- */
+function lineSVG(labels,series){const W=560,H=230,pL=52,pR=12,pT=14,pB=26;if(!labels.length)return'<div class="empty muted">Нет данных</div>';
+  const all=series.flatMap(s=>s.data);let mn=Math.min(0,...all),mx=Math.max(...all,1);if(mx===mn)mx=mn+1;
+  const iW=W-pL-pR,iH=H-pT-pB;const x=i=>labels.length===1?pL+iW/2:pL+iW*i/(labels.length-1);const y=v=>pT+iH*(1-(v-mn)/(mx-mn));
+  let grid='';for(let s=0;s<=4;s++){const val=mn+(mx-mn)*s/4,yy=y(val);grid+=`<line class="gl" x1="${pL}" y1="${yy}" x2="${W-pR}" y2="${yy}"/><text x="${pL-7}" y="${yy+3}" text-anchor="end">${fmtShort(val,latestMonth())}</text>`;}
+  let xl='';const st=Math.ceil(labels.length/7);labels.forEach((k,i)=>{if(i%st===0||i===labels.length-1)xl+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle">${mLabel(k).replace(' 20',' ')}</text>`;});
+  let paths=series.map(s=>{const pts=s.data.map((v,i)=>`${x(i)},${y(v)}`).join(' ');return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round"/>`+s.data.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="2.3" fill="${s.color}"/>`).join('');}).join('');
+  const zero=(mn<0&&mx>0)?`<line class="gl" x1="${pL}" y1="${y(0)}" x2="${W-pR}" y2="${y(0)}" stroke-dasharray="3 3"/>`:'';
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${grid}${zero}${xl}${paths}</svg><div class="legend">${series.map(s=>`<span class="item"><span class="dot" style="background:${s.color}"></span>${s.label}</span>`).join('')}</div>`;}
+function pieSVG(map,k){const e=Object.entries(map).sort((a,b)=>b[1]-a[1]);const tot=e.reduce((s,[,v])=>s+v,0);if(tot<=0)return'<div class="empty muted">Нет данных</div>';
+  const cx=88,cy=88,r=72,ir=44;let a=-Math.PI/2,arcs='';e.forEach(([c,v])=>{const f=v/tot,a2=a+f*2*Math.PI,lg=f>.5?1:0;
+    const x1=cx+r*Math.cos(a),y1=cy+r*Math.sin(a),x2=cx+r*Math.cos(a2),y2=cy+r*Math.sin(a2),xi1=cx+ir*Math.cos(a2),yi1=cy+ir*Math.sin(a2),xi2=cx+ir*Math.cos(a),yi2=cy+ir*Math.sin(a);
+    arcs+=`<path d="M${x1} ${y1} A${r} ${r} 0 ${lg} 1 ${x2} ${y2} L${xi1} ${yi1} A${ir} ${ir} 0 ${lg} 0 ${xi2} ${yi2} Z" fill="${catColor(c)}" stroke="var(--panel)" stroke-width="1.5"/>`;a=a2;});
+  const leg=e.map(([c,v])=>`<span class="item"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)} <b>${(v/tot*100).toFixed(0)}%</b></span>`).join('');
+  return `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap"><svg viewBox="0 0 176 176" width="176">${arcs}<text x="88" y="84" text-anchor="middle">всего</text><text x="88" y="100" text-anchor="middle" style="fill:var(--text);font-weight:700;font-size:12px">${fmtShort(tot,k)}</text></svg><div class="legend" style="flex-direction:column;gap:8px;margin:0">${leg}</div></div>`;}
+
+/* ---------- modals ---------- */
+function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g=it?it.group:(group||'asset');
+  const cats=S.categories.filter(c=>c.group===g);
+  const c0=incomeCfg(it);const meth0=c0.mode!=='fixed'?'variable':(c0.by==='percent'?'percent':'amount');
+  modal(id?'Изменить позицию':'Новая позиция',`
+    <div class="field"><label>Название</label><input class="inp" id="mn" value="${it?esc(it.name):''}" placeholder="Напр. Крипта споты"></div>
+    <div class="field"><label>Группа</label><select class="inp" id="mg" onchange="itemModalGroup(this.value)">${Object.entries(GROUPS).map(([k,v])=>`<option value="${k}" ${g===k?'selected':''}>${v}</option>`).join('')}</select></div>
+    <div class="field" id="mcWrap"><label>Категория</label>${cats.length?`<select class="inp" id="mc">${cats.map(c=>`<option ${it&&it.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`:`<input class="inp" id="mc" placeholder="Название новой категории">`}</div>
+    <div class="field"><label>Подкатегория (необязательно)</label><input class="inp" id="msub" value="${it?esc(it.subcategory||''):''}" placeholder="Напр. Проект А / Группа Б" list="sublist"><datalist id="sublist">${[...new Set(S.items.map(i=>i.subcategory).filter(Boolean))].map(s=>`<option>${esc(s)}</option>`).join('')}</datalist></div>
+    <div class="field"><label>Валюта</label><select class="inp" id="mcur">${CURRENCIES.map(c=>`<option ${it&&it.currency===c?'selected':(!it&&c==='USD'?'selected':'')}>${c}</option>`).join('')}</select></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mbyqty" ${it&&it.byQty?'checked':''} onchange="itemModalByQty()"> Крипта: стоимость = количество × курс</label></div>
+    <div class="field" id="msymWrap" style="display:${it&&it.byQty?'block':'none'}"><label>Монета</label><select class="inp" id="msym">${COIN_SYMBOLS.map(s=>`<option ${it&&it.symbol===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="field"><label>Цена покупки / точка нуля (в $)</label><input class="inp" id="mcost" type="number" step="any" value="${it&&it.cost!=null&&it.cost!==''?it.cost:''}" placeholder="за сколько $ купил — для расчёта прибыли"></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mspend" ${it&&it.spending?'checked':''}> 🛒 Тратный счёт (трачу отсюда)</label><div class="hint">Для счёта в «Свободных средствах». Отмечен = <b>тратный</b> (недостача = расход; прибыль сюда не растит нереализованную). Не отмечен = <b>💰 накопительный</b> (инвестирую/коплю — прибыль сюда растит нереализованную прибыль).</div></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mprin" ${it&&it.principal?'checked':''}> Стоимость = принципал (займ / долг / наличка)</label><div class="hint">Изменение суммы — это возврат/пополнение тела, НЕ прибыль. Прибылью считается только доход (проценты).</div></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mself" ${it&&it.selfReinvest?'checked':''}> 💰 Доход капитализируется в тело (не выводится)</label><div class="hint">Для займа/вклада, где проценты не забираются, а прибавляются к телу. Работает в обе стороны, как переоценка: впишешь доход в «Прибыли» (и выберешь «куда зачислено» = эту же позицию) — остаток в «Остатках» подтянется сам (прошлый + начисленное). Или наоборот — впишешь новый остаток в «Остатках» — доход в «Прибыли» посчитается сам как разница.</div></div>
+    <div class="field" id="mrepayWrap" style="display:${g==='liability'?'block':'none'}">
+      <label>График погашения</label>
+      <select class="inp" id="mrepay" onchange="itemModalRepay()">
+        <option value="manual" ${(!it||!it.repayMode||it.repayMode==='manual')?'selected':''}>Вручную (как сейчас)</option>
+        <option value="monthly" ${it&&it.repayMode==='monthly'?'selected':''}>Ежемесячно — фикс. сумма</option>
+        <option value="schedule" ${it&&it.repayMode==='schedule'?'selected':''}>График — список платежей по датам</option>
+      </select>
+      <div id="mrepayMonthly" style="display:${it&&it.repayMode==='monthly'?'block':'none'};margin-top:8px">
+        <label>Платёж в месяц (в валюте позиции, см. выше)</label>
+        <input class="inp" id="mrepayAmt" type="${hideAmt?'password':'number'}" step="any" value="${it&&it.repayMonthly!=null?it.repayMonthly:''}" placeholder="${hideAmt?'•••':'напр. 50000'}">
+      </div>
+      <div class="hint" style="margin-top:6px">${it&&it.repayMode==='schedule'?'Сами даты и суммы редактируются в карточке позиции (клик по названию в «Капитал») — там же виден статус по каждому платежу и просрочки.':'Подсвечивает просрочку платежа баннером наверху (на любой вкладке) и не даёт забыть.'}</div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin:6px 0 12px;padding-top:12px"><div style="font-size:12.5px;color:var(--muted);font-weight:600;margin-bottom:8px">ДОХОД</div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mhasinc" ${it&&it.noIncome?'':'checked'} onchange="itemModalHasInc()"> Приносит месячный доход</label><div class="hint">Снять, если актив только растёт в цене (напр. BTC, который лежит). Тогда доходность = от роста цены.</div></div>
+    <div id="mincomeBlock" style="display:${it&&it.noIncome?'none':'block'}">
+    <div class="field"><label>Способ</label><select class="inp" id="mim" onchange="itemModalIncome()">
+       <option value="variable" ${meth0==='variable'?'selected':''}>Вручную (переменный) — ввожу каждый период</option>
+       <option value="percent" ${meth0==='percent'?'selected':''}>В процентах (постоянный) — % от стоимости</option>
+       <option value="amount" ${meth0==='amount'?'selected':''}>Фикс. сумма (постоянный)</option></select></div>
+    <div id="mincCfg" style="display:${meth0==='variable'?'none':'block'}">
+      <div class="row">
+        <div class="field" style="flex:1"><label id="mrateLbl">${meth0==='percent'?'Ставка, %':'Сумма'}</label><input class="inp" id="mrate" type="number" step="any" value="${c0.mode==='fixed'?(c0.rate??''):''}" placeholder="${meth0==='percent'?'напр. 3':'напр. 500'}"></div>
+        <div class="field" style="flex:1"><label>Период</label><select class="inp" id="miper">${[['day','в день'],['month','в месяц'],['quarter','в квартал'],['year','в год']].map(([v,t])=>`<option value="${v}" ${(c0.period||'month')===v?'selected':''}>${t}</option>`).join('')}</select></div>
+      </div></div></div></div>
+    <div class="field"><label>Заметка</label><input class="inp" id="mnote" value="${it?esc(it.note||''):''}"></div>`,()=>{
+    const name=document.getElementById('mn').value.trim();if(!name){toast('Введите название');return false;}
+    const grp=document.getElementById('mg').value,cat=document.getElementById('mc').value.trim(),cur=document.getElementById('mcur').value,note=document.getElementById('mnote').value.trim();
+    if(!cat){toast('Введите категорию');return false;}
+    if(!S.categories.some(c=>c.name===cat&&c.group===grp))S.categories.push({name:cat,group:grp,color:PALETTE[S.categories.length%PALETTE.length]});
+    const meth=document.getElementById('mim').value;let income;
+    if(meth==='variable') income={mode:'variable'};
+    else income={mode:'fixed',by:(meth==='percent'?'percent':'amount'),period:document.getElementById('miper').value,rate:+document.getElementById('mrate').value||0};
+    const principal=document.getElementById('mprin').checked;
+    const selfReinvest=document.getElementById('mself').checked;
+    const subcategory=document.getElementById('msub').value.trim();
+    const costRaw=document.getElementById('mcost').value;const cost=costRaw===''?null:+costRaw;
+    const noIncome=!document.getElementById('mhasinc').checked;
+    const byQty=document.getElementById('mbyqty').checked; const symbol=byQty?document.getElementById('msym').value:'';
+    const spending=document.getElementById('mspend').checked;
+    const repayModeRaw=document.getElementById('mrepay')?document.getElementById('mrepay').value:'manual';
+    const repayMode=(grp==='liability'&&repayModeRaw!=='manual')?repayModeRaw:null;
+    const repayMonthly=repayMode==='monthly'?(+document.getElementById('mrepayAmt').value||0):null;
+    if(it){const wasByQty=it.byQty;it.name=name;it.group=grp;it.category=cat;it.subcategory=subcategory;it.currency=cur;it.note=note;it.income=income;it.principal=principal;it.selfReinvest=selfReinvest;it.cost=cost;it.noIncome=noIncome;it.byQty=byQty;it.symbol=symbol;it.spending=spending;it.repayMode=repayMode;it.repayMonthly=repayMonthly;
+      if(wasByQty&&!byQty){it.cost=null;delete it.qtyBase;delete it.costBase;delete it._firstTx;delete it._costSeed;}} // выключили «крипта по количеству» — не тащить старую крипто-себестоимость в обычную позицию
+    else S.items.push({id:uid(),name,group:grp,category:cat,subcategory,currency:cur,note,income,principal,selfReinvest,cost,noIncome,byQty,symbol,spending,repayMode,repayMonthly,createdAt:curMonth});
+    save();render();toast('Сохранено');});}
+function itemModalIncome(){const m=document.getElementById('mim').value;document.getElementById('mincCfg').style.display=m==='variable'?'none':'block';const l=document.getElementById('mrateLbl');if(l)l.textContent=m==='percent'?'Ставка, %':'Сумма';}
+function itemModalHasInc(){const on=document.getElementById('mhasinc').checked;document.getElementById('mincomeBlock').style.display=on?'block':'none';}
+function itemModalByQty(){const on=document.getElementById('mbyqty').checked;document.getElementById('msymWrap').style.display=on?'block':'none';}
+function itemModalRepay(){const v=document.getElementById('mrepay').value;const w=document.getElementById('mrepayMonthly');if(w)w.style.display=v==='monthly'?'block':'none';}
+function itemModalGroup(g){const cats=S.categories.filter(c=>c.group===g);const wrap=document.getElementById('mcWrap');if(!wrap)return;
+  wrap.innerHTML=`<label>Категория</label>${cats.length?`<select class="inp" id="mc">${cats.map(c=>`<option>${esc(c.name)}</option>`).join('')}</select>`:`<input class="inp" id="mc" placeholder="Название новой категории">`}`;
+  const rw=document.getElementById('mrepayWrap');if(rw)rw.style.display=g==='liability'?'block':'none';}
+function delItem(id){const it=S.items.find(x=>x.id===id);confirmModal(`Удалить «${esc(it.name)}»?`,'Данные по месяцам тоже удалятся — это изменит историю. Если позиция просто больше не нужна, лучше «В архив».',()=>{S.items=S.items.filter(x=>x.id!==id);Object.values(S.months).forEach(m=>{delete m.values[id];delete m.income[id];delete m.qty[id];if(m.incomeTo)Object.keys(m.incomeTo).forEach(k=>{if(m.incomeTo[k]===id)m.incomeTo[k]='';});if(m.moves)m.moves=m.moves.filter(mv=>mv.from!==id&&mv.to!==id);});save();render();});}
+function archiveItem(id){const it=S.items.find(x=>x.id===id);if(!it)return;const mk=latestMonth()||curMonth;const bal=Math.abs(itemValUSD(it.id,mk));const msg=bal>0.5?`⚠ ВНИМАНИЕ: баланс ${fmt(bal,mk)}\n\nПри архивации эта сумма исчезнет из капитала. Сначала переведите остаток транзакцией на другой счёт.`:`Позиция скроется из ввода и текущего капитала начиная с ${mLabel(mk)}. Вся история до этого месяца сохранится. Можно вернуть в любой момент.`;if(bal>0.5){confirmModal(`В архив «${esc(it.name)}»?`,msg);return;}confirmModal(`В архив «${esc(it.name)}»?`,msg,()=>{it.archivedAt=mk;save();render();toast('В архиве');});}
+function unarchiveItem(id){const it=S.items.find(x=>x.id===id);if(!it)return;delete it.archivedAt;save();render();toast('Возвращено из архива');}
+// заархивировать все неиспользуемые: нулевой баланс и без дохода в последнем месяце
+function archiveUnused(){const k=latestMonth();if(!k){toast('Нет месяцев');return;}const t=S.items.filter(i=>!i.archivedAt&&Math.abs(itemValUSD(i.id,k))<0.5&&monthIncomeUSD(i.id,k)===0);if(!t.length){toast('Неиспользуемых нет');return;}confirmModal(`Заархивировать ${t.length} неиспользуемых?`,`Нулевой баланс и без дохода в ${mLabel(k)}: ${t.map(x=>esc(x.name)).join(', ')}. История сохранится, можно вернуть по одной.`,()=>{t.forEach(x=>x.archivedAt=k);save();render();toast(t.length+' в архиве');});}
+function catModal(idx){const c=idx!=null?S.categories[idx]:null;const g0=c?c.group:'asset';
+  modal(c?'Категория':'Новая категория',`
+   <div class="field"><label>Название</label><input class="inp" id="cn" value="${c?esc(c.name):''}" placeholder="Напр. Крипта"></div>
+   ${c?`<div class="field"><label>Группа</label><input class="inp" value="${esc(GROUPS[c.group])}" disabled></div>`:`<div class="field"><label>Группа</label><select class="inp" id="cg">${Object.entries(GROUPS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div>`}
+   <div class="field"><label>Цвет</label><input class="inp" id="cc" type="color" value="${c?c.color:PALETTE[S.categories.length%PALETTE.length]}" style="height:42px"></div>`,()=>{
+   const n=document.getElementById('cn').value.trim();if(!n){toast('Название');return false;}
+   const newColor=document.getElementById('cc').value;
+   if(c){
+     if(n!==c.name){if(S.categories.some(x=>x.name===n)){toast('Уже есть');return false;}S.items.forEach(i=>{if(i.category===c.name)i.category=n;});c.name=n;}
+     c.color=newColor;
+   }else{
+     if(S.categories.some(x=>x.name===n)){toast('Уже есть');return false;}
+     S.categories.push({name:n,group:document.getElementById('cg').value,color:newColor});
+   }
+   save();render();});}
+function delCat(n){if(S.items.some(i=>i.category===n)){toast('Категория используется');return;}S.categories=S.categories.filter(c=>c.name!==n);save();render();}
+function delCatIdx(idx){const c=S.categories[idx];if(c)delCat(c.name);}
+function fundModal(){modal('Новый счёт',`
+   <div class="field"><label>Название</label><input class="inp" id="fn" placeholder="Напр. Тинькофф"></div>
+   <div class="field"><label>Валюта</label><select class="inp" id="fc">${CURRENCIES.map(c=>`<option ${c==='RUB'?'selected':''}>${c}</option>`).join('')}</select></div>`,()=>{
+   const n=document.getElementById('fn').value.trim();if(!n){toast('Название');return false;}
+   S.fundAccounts.push({id:uid('f'),name:n,currency:document.getElementById('fc').value});save();render();});}
+function delFund(id){S.fundAccounts=S.fundAccounts.filter(a=>a.id!==id);Object.values(S.months).forEach(m=>delete m.funds[id]);save();render();}
+function dashCardsModal(){
+  const body=`<div class="hint" style="margin-bottom:10px">Выбери, какие карточки показывать на «Обзоре». Карточка всё равно скрыта, если значение сейчас нулевое/неприменимо.</div>`+
+    DASH_CARDS.map(([id,label])=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer"><input type="checkbox" data-card="${id}" ${dashCardOn(id)?'checked':''}> ${esc(label)}</label>`).join('');
+  modal('Карточки на обзоре',body,()=>{
+    const r=document.getElementById('modal-root');S.dashCards=S.dashCards||{};
+    r.querySelectorAll('input[data-card]').forEach(inp=>{S.dashCards[inp.dataset.card]=inp.checked;});
+    save();render();
+  });
+}
+function modal(t,b,ok){const r=document.getElementById('modal-root');r.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="modal-h"><h3>${t}</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b">${b}</div><div class="modal-f"><button class="btn ghost" onclick="closeModal()">Отмена</button><button class="btn" id="mok">Сохранить</button></div></div></div>`;
+  document.getElementById('mok').onclick=()=>{const res=ok();if(res&&typeof res.then==='function'){res.then(v=>{if(v!==false)closeModal();});}else if(res!==false)closeModal();};
+  const f=r.querySelector('input,select');if(f)f.focus();}
+function confirmModal(t,x,ok){const r=document.getElementById('modal-root');r.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="modal-h"><h3>${t}</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b muted">${x}</div><div class="modal-f"><button class="btn ghost" onclick="closeModal()">Отмена</button><button class="btn danger" id="cok">Удалить</button></div></div></div>`;document.getElementById('cok').onclick=()=>{closeModal();ok();};}
+function closeModal(){document.getElementById('modal-root').innerHTML='';}
+// детальный экран актива: транзакции по нему + история стоимости/цены (с пометкой ручных правок)
+// из чего складывается карточка «Нереализ. прибыль (рынок)» — та же выборка/формула, что в unrealizedMTMUSD,
+// просто построчно по позициям вместо одной суммы
+function mtmBreakdown(){
+  const k=latestMonth()||curMonth;
+  const rows=S.items.filter(i=>i.group!=='reserve'&&i.group!=='activity'&&!isArch(i,k))
+    .map(i=>({i,p:itemPnL(i.id,k)})).filter(({p})=>Math.abs(p.total)>0.5)
+    .sort((a,b)=>Math.abs(b.p.total)-Math.abs(a.p.total));
+  const total=unrealizedMTMUSD(k); // не пересуммировать отфильтрованные строки — иначе «Итого» может чуть разойтись с карточкой, если есть позиции со вкладом <$0.5
+  const body=rows.length?`<div class="scroll-x"><table><thead><tr><th style="text-align:left">Позиция</th><th>Стоимость</th><th>База</th><th>Вклад</th></tr></thead><tbody>${rows.map(({i,p})=>`<tr><td style="text-align:left"><span class="dot" style="background:${catColor(i.category)}"></span>${esc(i.name)}</td><td>${fmt(p.value,k)}</td><td class="muted">${p.cost!=null?fmt(p.cost,k):(p.first?fmt(p.first,k):'—')}</td><td class="${p.total>=0?'pos':'neg'}">${p.total>=0?'+':''}${fmt(p.total,k)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="hint" style="margin-top:10px">«База» — цена покупки (если задана), иначе первое известное значение. Вклад = стоимость − база + накопленный доход (для принципал-позиций: только доход — изменение тела в прибыль не идёт). Резерв/деятельность/архив в расчёт не входят.</div>`
+    :'<div class="empty muted">Нет позиций с ненулевым вкладом</div>';
+  const r=document.getElementById('modal-root');
+  r.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" style="max-width:580px"><div class="modal-h"><h3>📈 Нереализ. прибыль (рынок) · ${mLabel(k)}</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b">${body}</div><div class="modal-f"><div style="flex:1;text-align:left;font-weight:650">Итого: <span class="${total>=0?'pos':'neg'}">${fmt(total,k)}</span></div><button class="btn ghost" onclick="closeModal()">Закрыть</button></div></div></div>`;
+}
+function assetDetail(id){const it=S.items.find(x=>x.id===id);if(!it)return;const k=latestMonth()||curMonth;const p=itemPnL(id,k);const ks=monthList();
+  // история стоимости
+  let hist=ks.map(x=>{const m=S.months[x];const explicit=it.byQty?(m.qty&&m.qty[id]!=null&&m.qty[id]!==''):(itemVal(id,x)!=null);const v=itemValUSD(id,x);if(Math.abs(v)<0.5&&!explicit)return null;let det;if(it.byQty){const q=itemQty(id,x),px=cryptoPrice(it.symbol,x);const pxFixed=!!(m.px&&m.px[it.symbol]!=null&&m.px[it.symbol]!=='');det=`${q!=null?(+q).toLocaleString('ru-RU'):'—'} × $${px?px.toLocaleString('ru-RU'):'—'}${pxFixed?' <span class="muted" title="цена зафиксирована вручную в этом месяце">📌</span>':''}`;}else{const raw=itemVal(id,x);det=raw!=null?`${(+raw).toLocaleString('ru-RU')} ${it.currency}`:'<span class="muted">—</span>';}
+    return `<tr><td>${mLabel(x)}</td><td style="text-align:left">${det}</td><td>${fmt(v,x)}</td><td class="muted" style="font-size:11px">${explicit?'✎ введено':'↩ перенесено'}</td></tr>`;}).filter(Boolean).reverse().join('');
+  // транзакции по активу
+  let txs=[];ks.forEach(x=>movesOf(x).forEach(mv=>{if(mv.from===id||mv.to===id){const outp=mv.from===id;const other=outp?mv.to:mv.from;txs.push({date:mv.date||x+'-01',outp,other:endpointName(other),amt:mv.amt,pnl:movePnl(mv)});}}));
+  txs.sort((a,b)=>a.date>b.date?1:-1);
+  let txRows=txs.map(t=>`<tr><td>${t.date}</td><td style="text-align:left">${t.outp?'<span class="neg">↑ из</span>':'<span class="pos">↓ в</span>'} ${esc(t.other)}</td><td>${t.amt!=null?fmt(+t.amt,k):'—'}</td><td class="${t.pnl<0?'neg':t.pnl>0?'pos':'muted'}">${t.pnl?(t.pnl>0?'+':'')+fmt(t.pnl,k):'—'}</td></tr>`).join('');
+  const growthTxt=p.growth!=null?` · <span class="${sign(p.growth)}">${p.growth>=0?'+':'−'}${Math.abs(p.growth*100).toFixed(1)}% от покупки</span>`:'';
+  // график погашения (только для обязательств с заданным repayMode)
+  let repaySection='';
+  if(it.group==='liability'&&it.repayMode&&it.repayMode!=='manual'){
+    const st=repayStatus(it);const rows=st?st.rows:[];
+    const nat=(v)=>hideAmt?'•••':(Math.round(+v)).toLocaleString('ru-RU')+' '+it.currency;
+    const badge=s=>s==='paid'?'<span class="pos">✓ оплачено</span>':s==='overdue'?'<span class="neg">⚠ просрочено</span>':'<span class="muted">⏳ предстоит</span>';
+    const modeLbl=it.repayMode==='monthly'?`ежемесячно · ${nat(it.repayMonthly||0)}`:'график';
+    const scheduleRows=it.repayMode==='schedule'
+      ?(it.repaySchedule||[]).map((r,i)=>`<tr><td><input class="inp" type="date" value="${r.date||''}" oninput="setRepayRow('${id}',${i},'date',this.value)" style="max-width:150px"></td><td><input class="inp" type="${hideAmt?'password':'number'}" step="any" value="${r.amount!=null?r.amount:''}" oninput="setRepayRow('${id}',${i},'amount',this.value)" style="max-width:120px" placeholder="${hideAmt?'•••':'сумма'}"></td><td>${rows[i]?badge(rows[i].status):''}</td><td><button class="icon-btn" onclick="delRepayRow('${id}',${i})" title="Удалить">✕</button></td></tr>`).join('')
+      :rows.map(r=>`<tr><td>${r.date}</td><td>${nat(r.amount)}</td><td>${badge(r.status)}</td><td></td></tr>`).join('');
+    repaySection=`<div style="font-weight:650;margin:16px 0 6px">📅 График погашения · ${modeLbl}</div>
+      ${st?`<div class="hint" style="margin-bottom:8px">Осталось: <b>${nat(st.actualOwed)}</b>${st.overdue.length?` · <span class="neg">⚠ просрочено платежей: ${st.overdue.length}</span>`:''}${st.upcoming?` · следующий ${st.upcoming.date} — ${nat(st.upcoming.amount)}`:''}</div>`:''}
+      <div class="scroll-x" style="max-height:220px;overflow-y:auto"><table><thead><tr><th style="text-align:left">Дата</th><th>Сумма</th><th>Статус</th><th></th></tr></thead><tbody>${scheduleRows||'<tr><td colspan="4" class="muted">Платежей нет</td></tr>'}</tbody></table></div>
+      ${it.repayMode==='schedule'?`<button class="btn ghost sm" style="margin-top:8px" onclick="addRepayRow('${id}')">+ Платёж</button>`:''}`;
+  }
+  const body=`<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px">
+      <div><div class="muted" style="font-size:11px">Стоимость (${mLabel(k)})</div><div style="font-size:22px;font-weight:700">${fmt(p.value,k)}</div></div>
+      ${p.cost!=null?`<div><div class="muted" style="font-size:11px">Цена покупки</div><div style="font-size:16px;font-weight:600;padding-top:5px">${hideAmt?'••••• '+CUR_SYMBOL[display]:'$'+Math.round(p.cost).toLocaleString('ru-RU')}${growthTxt}</div></div>`:''}
+    </div>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">${esc(GROUPS[it.group])} · ${esc(it.category)}${it.subcategory?' · '+esc(it.subcategory):''}${it.archivedAt?` · <span style="color:var(--amber)">в архиве с ${mLabel(it.archivedAt)}</span>`:''}</div>
+    <div style="font-weight:650;margin:14px 0 6px">🔄 Транзакции по активу${txs.length?` · ${txs.length}`:''}</div>
+    <div class="scroll-x"><table><thead><tr><th>Дата</th><th style="text-align:left">Движение</th><th>Сумма</th><th>Ущерб/Приб.</th></tr></thead><tbody>${txRows||'<tr><td colspan="4" class="muted">Транзакций нет</td></tr>'}</tbody></table></div>
+    ${repaySection}
+    <div style="font-weight:650;margin:16px 0 6px">📈 История стоимости${it.byQty?' (кол-во × цена)':''}</div>
+    <div class="scroll-x" style="max-height:260px;overflow-y:auto"><table><thead><tr><th>Месяц</th><th style="text-align:left">${it.byQty?'Кол-во × цена':'Значение'}</th><th>в $</th><th></th></tr></thead><tbody>${hist||'<tr><td colspan="4" class="muted">Нет данных</td></tr>'}</tbody></table></div>`;
+  const r=document.getElementById('modal-root');
+  r.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" style="max-width:620px"><div class="modal-h"><h3><span class="dot" style="background:${catColor(it.category)}"></span>${esc(it.name)}</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b">${body}</div><div class="modal-f"><button class="btn ghost sm" onclick="convertItemCurrencyModal('${id}')" title="Сменить валюту позиции, пересчитав всю историю по курсу на дату каждого месяца">🔄 Валюта</button><button class="btn ghost" onclick="closeModal()">Закрыть</button><button class="btn" onclick="closeModal();itemModal('${id}')">✎ Изменить</button></div></div></div>`;}
+
+/* ---------- import/export ---------- */
+function exportJSON(){const b=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});dl(b,`fintracker-${thisMonth()}.json`);toast('Бэкап скачан');}
+// скачивание файла (blob+<a download>) часто не работает внутри Telegram WebView (блокируется/игнорируется
+// клиентом), а сама navigator.clipboard.writeText() в некоторых клиентах Telegram ТОЖЕ может молча не
+// сработать (ограничения WebView) — поэтому помимо автокопирования всегда показываем сам текст в поле,
+// которое можно выделить и скопировать вручную (зажать → «Копировать») — это работает ВЕЗДЕ, т.к. это
+// обычное выделение текста средствами ОС, а не JS-API буфера обмена.
+async function copyBackupToClipboard(){
+  const text=JSON.stringify(S);
+  let autoOk=false;
+  try{await navigator.clipboard.writeText(text);autoOk=true;}catch(e){}
+  const body=`<div class="hint" style="margin-bottom:10px">${autoOk?'✅ Уже скопировано в буфер автоматически — можно сразу вставлять.':'⚠️ Автокопирование не сработало — выделите текст ниже вручную (зажать → «Копировать») и вставьте куда нужно.'}</div>
+    <textarea class="inp" id="bkpText" readonly style="height:200px;font-size:11px;font-family:monospace" onclick="this.select()">${esc(text)}</textarea>`;
+  const r=document.getElementById('modal-root');
+  r.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="modal-h"><h3>Бэкап (JSON)</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b">${body}</div><div class="modal-f"><button class="btn ghost" onclick="copyBackupToClipboard()">↻ Скопировать снова</button><button class="btn" onclick="closeModal()">Готово</button></div></div></div>`;
+  const ta=document.getElementById('bkpText');if(ta){ta.focus();ta.select();}
+}
+function importJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);const err=validateImport(d);if(err){toast(err);return;}confirmModal('Заменить данные?','Импорт перезапишет всё.',()=>{applyImport(d);});}catch(x){toast('Ошибка файла');}e.target.value='';};r.readAsText(f);}
+function validateImport(d){if(!d||typeof d!=='object')return 'Не объект';if(!Array.isArray(d.items)||!d.items.every(x=>x.id&&x.name&&x.group))return 'Позиции: неверный формат';if(!d.months||typeof d.months!=='object')return 'Месяцы: неверный формат';if(!Object.keys(d.months).every(k=>/^\d{4}-\d{2}$/.test(k)))return 'Ключ месяца: неверный формат (YYYY-MM)';if(!Array.isArray(d.categories))return 'Категории: должен быть массив';return null;}
+function applyImport(d){const err=validateImport(d);if(err){toast(err);return false;}S=d;['categories','fundAccounts','items'].forEach(k=>S[k]=S[k]||[]);S.months=S.months||{};if(!S.fx)S.fx=Object.assign({},DEFAULT_FX);display=S.display||'USD';curMonth=latestMonth()||thisMonth();save();render();toast('Загружено');return true;}
+function pasteImport(){modal('Вставить бэкап (JSON)',`<div class="field"><label>Вставь сюда содержимое файла бэкапа (.json)</label><textarea class="inp" id="pj" style="height:150px;font-size:11px;font-family:monospace" placeholder='{"version":2, ...}'></textarea></div><div class="hint">Открой свой файл бэкапа в блокноте, выдели всё (Ctrl+A), скопируй и вставь сюда. Нужно один раз — потом данные в облаке Telegram.</div>`,()=>{let d;try{d=JSON.parse(document.getElementById('pj').value);}catch(e){toast('Некорректный JSON');return false;}return applyImport(d)!==false;});}
+function exportCSV(){const ks=monthList();let L=['Месяц;Активы;Пассивы;Обязательства;ЧистыйКапитал;Доход;БалансДохРасх;НереализПрибыльРынок;НПИнвестиции;Курс'];ks.forEach(k=>{const nextK=shiftMonth(k,1);const inc=S.months[nextK]?totalIncomeUSD(nextK):'';const cs=(k>=(S.cashflowStartMonth||'2026-09'))?cashSurplusUSD(k):'';const mtm=unrealizedMTMUSD(k);const np=investmentNpState(k).unreal;L.push([mLabel(k),Math.round(disp(groupTotalUSD('asset',k),k)),Math.round(disp(groupTotalUSD('passive',k),k)),Math.round(disp(groupTotalUSD('liability',k),k)),Math.round(disp(netWorthUSD(k),k)),inc===''?'':Math.round(disp(inc,k)),cs===''?'':Math.round(disp(cs,k)),Math.round(disp(mtm,k)),Math.round(disp(np,k)),S.months[k].rate||''].join(';'));});const b=new Blob(['﻿'+L.join('\n')],{type:'text/csv;charset=utf-8'});dl(b,`fintracker-history.csv`);toast('CSV скачан');}
+function dl(b,n){const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}
+function resetAll(){confirmModal('Стереть всё?','Активы, история — всё удалится. Сделайте бэкап.',()=>{S=blank();curMonth=thisMonth();save();render();});}
+
+/* ---------- misc ---------- */
+function empty(t,x,b,a){return `<div class="panel"><div class="empty"><div class="big">✨</div><h2 style="margin-bottom:8px">${t}</h2><p class="muted" style="max-width:420px;margin:0 auto 18px">${x}</p><button class="btn" onclick="${a}">${b}</button></div></div>`;}
+// первый запуск (пустой кэш/облако): либо загрузить существующие данные, либо начать с нуля
+function quickStart(){return `<div class="panel"><div class="empty">
+  <div class="big">👋</div><h2 style="margin-bottom:8px">Добро пожаловать</h2>
+  <p class="muted" style="max-width:420px;margin:0 auto 18px">Загрузите существующий бэкап — или начните с чистого листа, создав первый счёт.</p>
+  <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+    <button class="btn" onclick="document.getElementById('imp').click()">📁 Выбрать файл</button>
+    <button class="btn ghost" onclick="pasteImport()">📋 Вставить JSON</button>
+    <button class="btn ghost" onclick="itemModal(null,'reserve')">➕ Создать первый счёт</button>
+  </div>
+  <p class="muted" style="max-width:420px;margin:18px auto 0;font-size:12.5px">«Выбрать файл» — для десктопа. В Telegram надёжнее «Вставить JSON».</p>
+</div></div>`;}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+let tT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),2200);}
+function initTheme(){const s=localStorage.getItem('ft_theme');if(s)document.documentElement.setAttribute('data-theme',s);document.getElementById('themeBtn').onclick=()=>{const c=document.documentElement.getAttribute('data-theme');const n=c==='dark'?'light':c==='light'?'':'dark';if(n)document.documentElement.setAttribute('data-theme',n);else document.documentElement.removeAttribute('data-theme');localStorage.setItem('ft_theme',n);if(tab==='dash')drawDash();};}
+initApp();
+</script>
+</body>
+</html>
