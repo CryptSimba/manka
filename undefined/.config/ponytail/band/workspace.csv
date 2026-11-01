@@ -1,2 +1,2 @@
 key,started,project,name,cost_usd,turns,agent_minutes,tokens_total,tokens_output,reuse_pct,reused,new,callers_open,tests,level,model
-9304c410-1793524735384,2026-11-01 09:18,workspace,Репо finance-tracker склонировано. Посмотри проект: структур,2.23,22,19.5,11054287,51247,,0,0,0,not run,off,claude-sonnet-5-5
+9304c410-1793524735384,2026-11-01 09:18,workspace,Репо finance-tracker склонировано. Посмотри проект: структур,2.32,23,20.3,11608926,53444,,0,0,0,not run,off,claude-sonnet-5-5
