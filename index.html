@@ -322,46 +322,18 @@ let cloudPullDone=false,pendingLocalEdit=false;
 function save(){if(CLOUD&&!cloudPullDone)pendingLocalEdit=true; // правка до завершения загрузки из облака — не дать cloudPull её затереть
   try{S.display=display;localStorage.setItem(LS,JSON.stringify(S));}catch(e){/* localStorage может быть недоступен в TG */}if(CLOUD)scheduleCloudPush();scheduleFileWrite();_monthListCache=null;_renderT=null;}
 let _monthListCache=null;const _monthListCached=()=>{if(_monthListCache===null)_monthListCache=Object.keys(S.months).sort();return _monthListCache;};
-let _renderT=null;const scheduleRender=()=>{clearTimeout(_renderT);_renderT=setTimeout(render,150);};
-const originalMonthList=monthList;monthList=_monthListCached;
+let _renderT=null;
+monthList=_monthListCached;
 // ---- Автосохранение в ФАЙЛ (File System Access API, Chrome/Edge) ----
 let fileHandle=null,fileWriteT=null,fileOK=false;
 function idbReq(mode,fn){return new Promise(res=>{try{const r=indexedDB.open('ft_fs',1);r.onupgradeneeded=()=>{try{r.result.createObjectStore('h');}catch(_){}};r.onsuccess=()=>{try{const st=r.result.transaction('h',mode).objectStore('h');const q=fn(st);q.onsuccess=()=>res(q.result);q.onerror=()=>res(null);}catch(e){res(null);}};r.onerror=()=>res(null);}catch(e){res(null);}});}
 const idbGet=k=>idbReq('readonly',st=>st.get(k));
 const idbSet=(k,v)=>idbReq('readwrite',st=>st.put(v,k));
-async function ensurePerm(h){try{if(!h.queryPermission)return true;const o={mode:'readwrite'};if(await h.queryPermission(o)==='granted')return true;if(await h.requestPermission(o)==='granted')return true;}catch(e){}return false;}
 async function writeFile(){if(!fileHandle||!fileOK)return;try{const w=await fileHandle.createWritable();await w.write(JSON.stringify(S));await w.close();setSync('💾 сохранено в файл');}catch(e){fileOK=false;setSync('⚠ файл недоступен');}}
 function scheduleFileWrite(){if(!fileHandle||!fileOK)return;clearTimeout(fileWriteT);fileWriteT=setTimeout(writeFile,700);}
-async function connectFile(){
-  if(!window.showSaveFilePicker){toast('Автозапись в файл работает только в Chrome/Edge (на компьютере). В других — жми «Бэкап».');return;}
-  if(fileHandle){fileMenu();return;} // уже подключён → меню (возобновить / сменить / отключить)
-  await pickNewFile();
-}
 // выбрать НОВЫЙ файл/место автосохранения
-async function pickNewFile(){
-  if(!window.showSaveFilePicker){toast('Только Chrome/Edge');return;}
-  try{
-    const h=await window.showSaveFilePicker({suggestedName:(fileHandle&&fileHandle.name)||'fintracker.json',types:[{description:'JSON',accept:{'application/json':['.json']}}]});
-    fileHandle=h;fileOK=true;await idbSet('handle',h);await writeFile();toast('Автосохранение в файл: '+h.name);
-  }catch(e){if(e&&e.name!=='AbortError')toast('Не удалось: '+(e.message||e));}
-  render();
-}
 // возобновить запись в текущий файл (после перезагрузки нужен клик для доступа)
-async function resumeFile(){
-  if(!fileHandle){await pickNewFile();return;}
-  if(await ensurePerm(fileHandle)){fileOK=true;await writeFile();toast('Автосохранение возобновлено: '+fileHandle.name);}
-  else toast('Доступ к файлу не выдан');
-  render();
-}
 // отключить автосохранение (файл на диске остаётся как есть)
-async function disconnectFile(){
-  fileHandle=null;fileOK=false;clearTimeout(fileWriteT);try{await idbSet('handle',null);}catch(e){}
-  setSync('');toast('Автосохранение отключено');render();
-}
-function fileMenu(){
-  const r=document.getElementById('modal-root');if(!r)return;
-  r.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="modal-h"><h3>Автосохранение в файл</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b"><div class="muted" style="margin-bottom:14px">Сейчас пишется в: <b style="color:var(--text)">${esc(fileHandle.name)}</b></div><div style="display:flex;flex-direction:column;gap:8px"><button class="btn" onclick="closeModal();resumeFile()">▶ Возобновить запись сюда</button><button class="btn ghost" onclick="closeModal();pickNewFile()">📁 Выбрать другой файл / место…</button><button class="btn danger" onclick="closeModal();disconnectFile()">✕ Отключить автосохранение</button></div><div class="hint" style="margin-top:12px">«Выбрать другой файл» — создай или укажи новый .json в нужной папке; дальше всё пишется туда.</div></div></div></div>`;
-}
 async function restoreFileHandle(){try{const h=await idbGet('handle');if(h){fileHandle=h;setSync('💾 файл «'+h.name+'» — нажми 🔗 для доступа');}}catch(e){}}
 function uid(p){return (p||'i')+Math.random().toString(36).slice(2,8);}
 
@@ -414,8 +386,6 @@ function parseExpr(str){if(str==null)return null;str=(''+str).replace(/\s/g,'').
   return (any&&allOk)?sum:null;}
 /* ---- двойная запись: счета, назначение дохода, переводы, сверка по счёту ---- */
 function accountItems(){return S.items.filter(i=>i.group==='reserve');}
-function spendingAccount(){return S.items.find(i=>i.group==='reserve'&&i.spending)||accountItems()[0]||null;}
-function itemCur(id){const it=S.items.find(x=>x.id===id);return it?it.currency:'USD';}
 function movesOf(k){const m=S.months[k];return (m&&m.moves)?m.moves:[];}
 // спец-контрагент «Личные деньги» (внешний, тратный мир). «Непогашенный ущерб» убран — заменён нереализованной прибылью.
 const PERSONAL='__personal__';
@@ -432,16 +402,6 @@ function clampPct(v){v=+v;if(!isFinite(v))return 0;return Math.max(0,Math.min(10
 // ЦЕЛЕВОЙ % реинвеста строки (план): по строке m.reinvest[id] либо общий S.reinvestTarget
 function incomeReinvest(id,k){const m=S.months[k];const p=(m&&m.reinvest&&m.reinvest[id]!=null&&m.reinvest[id]!=='')?m.reinvest[id]:(S.reinvestTarget!=null?S.reinvestTarget:0);return clampPct(p)/100;}
 // НП = реинвестировано − обязательство отложить (цель%). Доход: +фактически на накопит.счёт, −цель%×доход (должен был отложить). Минус гасится переводом тратный→накопит.
-function npState(){let unreal=0,real=0;const gr=clampPct(S.reinvestTarget!=null?S.reinvestTarget:0)/100;monthList().forEach(k=>{const m=S.months[k];
-    S.items.forEach(i=>{const inc=monthIncomeUSD(i.id,k);if(inc){const acc=m.incomeTo&&m.incomeTo[i.id];if(acc&&!isSpendAccount(acc))unreal+=inc;unreal-=inc*incomeReinvest(i.id,k);}}); // +реинвест (накопит), −обязательство (цель%)
-    (m.extra||[]).forEach(e=>{const amt=e.amount?toUSD(+e.amount,e.cur||'USD',k):0;if(amt){if(e.to&&!isSpendAccount(e.to))unreal+=amt;unreal-=amt*gr;}}); // прочие доходы — так же (цель по общему %)
-    movesOf(k).forEach(mv=>{const amt=mv.amt?+mv.amt:0;const pnl=movePnl(mv);
-      if(pnl!==0){ if(isSpendSide(mv.to)){unreal-=(amt-pnl);real+=pnl;} else {unreal+=pnl;} } // продажа: на траты — вывел капитал (−C), прибыль реализована; на инвест — прибыль осталась (+pnl)
-      else if(amt){ const fs=isSpendSide(mv.from),ts=isSpendSide(mv.to); if(!fs&&ts)unreal-=amt; else if(fs&&!ts)unreal+=amt; } // перевод через границу инвест/траты
-    });});
-  return {unreal,real};}
-function unrealizedProfitUSD(){return npState().unreal;}
-function realizedProfitUSD(){return npState().real;}
 // инвестиционная НП: всё, КРОМЕ пассивов (passive — машины/имущество, туда реинвест-дисциплина не применима).
 // Переводы накопительный↔тратный считаются независимо от группы (USDT→тратный столь же «реализация», как продажа актива).
 function investmentNpState(uptoK){let unreal=0,real=0;const gr=clampPct(S.reinvestTarget!=null?S.reinvestTarget:0)/100;monthList().filter(x=>!uptoK||x<=uptoK).forEach(k=>{const m=S.months[k];
@@ -523,7 +483,6 @@ function monthExpenseUSD(k){let total=0;S.items.filter(i=>isSpendAccount(i.id)).
 // доход/расход не вводились системно, и сумма по старым месяцам — не реальный перерасход, а шум.
 function cashSurplusUSD(k){const start=S.cashflowStartMonth||'2026-09';let s=0;monthList().filter(x=>x<=k&&x>=start).forEach(x=>s+=(totalIncomeUSD(x)-monthExpenseUSD(x)));return s;}
 // «инвестиции» в широком смысле юзера: ВСЁ, что не тратный счёт (не только группа asset)
-function nonSpendTotalUSD(k){return S.items.reduce((s,i)=>s+(isSpendAccount(i.id)?0:itemValUSD(i.id,k)),0);}
 // нереализованная прибыль «если продать всё сейчас»: текущая цена минус цена покупки (или первая известная, если покупка неизвестна),
 // плюс накопленный доход — т.е. просто сумма itemPnL().total. Резерв/деятельность исключены (это кэш-счета без цены покупки:
 // их «рост» — обычно просто внесённые деньги, а не прибыль); архивные — тоже (иначе висел бы фантомный убыток до нуля).
@@ -532,24 +491,17 @@ function setQty(id,v){const m=mo(curMonth);m.qtyExpr=m.qtyExpr||{};const num=par
 // подтвердить перенесённое количество крипты (записать в этот месяц явно)
 function confirmQty(id){const q=itemQty(id,curMonth);if(q!=null){const m=mo(curMonth);m.qty[id]=q;delete m.qtyFromMoves[id];save();render();toast('Подтверждено');}}
 function confirmAllQty(){const k=curMonth,m=mo(k);let n=0;S.items.forEach(i=>{if(i.byQty&&!isArch(i,k)&&(m.qty[i.id]==null||m.qty[i.id]==='')){const q=itemQty(i.id,k);if(q!=null){m.qty[i.id]=q;delete m.qtyFromMoves[i.id];n++;}}});if(n){save();render();toast('Подтверждено: '+n);}else toast('Нет перенесённых');}
-function setTrade(id,side,f,v){const m=mo(curMonth);const qk=side==='buy'?'buyq':'sellq',pk=side==='buy'?'buypx':'sellpx',tk=side==='buy'?'dep':'wd';
-  m[qk][id]=(f==='q')?(v===''?null:+v):m[qk][id]; m[pk][id]=(f==='px')?(v===''?null:+v):m[pk][id];
-  const q=m[qk][id],px=m[pk][id]; m[tk][id]=(q!=null&&px!=null)?q*px:(m[tk][id]); save();}
 /* ---- движения денег (пополнения/выводы) и сверка ---- */
 function depUSD(id,k){const it=S.items.find(x=>x.id===id);const m=S.months[k];if(!it||!m||!m.dep)return 0;const v=m.dep[id];return (v==null||v==='')?0:toUSD(+v,it.currency,k);}
 function wdUSD(id,k){const it=S.items.find(x=>x.id===id);const m=S.months[k];if(!it||!m||!m.wd)return 0;const v=m.wd[id];return (v==null||v==='')?0:toUSD(+v,it.currency,k);}
-function flowInTotal(k){return S.items.reduce((s,i)=>s+depUSD(i.id,k),0);}
-function flowOutTotal(k){return S.items.reduce((s,i)=>s+wdUSD(i.id,k),0);}
 // рыночный рост актива за месяц = изменение стоимости − пополнение + вывод
 function moveNetInto(id,k){let s=0;movesOf(k).forEach(mv=>{if(mv.amt){if(mv.to===id)s+=+mv.amt;if(mv.from===id)s-=+mv.amt;}});return s;}
 function marketGainUSD(id,k){const pv=prevExist(k);if(pv==null)return 0;const prevV=itemValUSD(id,pv);if(prevV===0)return 0;/* первое появление позиции — не рыночный прирост, иначе годовая доходность улетает (напр. крипта в месяц перехода = +1200%) */const dv=itemValUSD(id,k)-prevV;return dv-depUSD(id,k)+wdUSD(id,k)-moveNetInto(id,k);}
-function marketGainTotal(k){return S.items.reduce((s,i)=>s+marketGainUSD(i.id,k),0);}
 // «доходность-вклад» позиции за месяц: только доход (для крипты годовая доходность из месяца бессмысленна → 0, её рост показывается отдельно как рост от покупки)
 function itemMonthReturnUSD(id,k){const it=S.items.find(x=>x.id===id);if(!it||it.noIncome)return 0;return monthIncomeUSD(id,k);}
 // агрегатная доходность набора: если ВСЕ позиции «только рост цены» (крипта) — общий рост от цены покупки; иначе годовых от дохода
 function aggYield(items,k){if(!items||!items.length)return null;const v=items.reduce((s,i)=>s+itemValUSD(i.id,k),0);if(items.every(i=>i.noIncome)){const cost=items.reduce((s,i)=>s+((i.cost!=null&&i.cost!=='')?+i.cost:0),0);return cost>0?(v-cost)/cost:null;}const c=items.reduce((s,i)=>s+itemMonthReturnUSD(i.id,k),0);return (v>0&&c)?(c*12)/v:null;}
 // «необъяснено»: нетто вложенного в активы должно = доход − расход. Иначе деньги из воздуха.
-function unexplainedUSD(k){const m=S.months[k];if(!m)return 0;const netIn=flowInTotal(k)-flowOutTotal(k);const income=totalIncomeUSD(k);const expense=(m.cashflow&&m.cashflow.expense)?+m.cashflow.expense:0;return netIn-(income-expense);}
 function itemVal(id,k){const m=S.months[k];if(!m||m.values[id]==null||m.values[id]==='')return null;return m.values[id];}
 // последнее введённое значение в прошлом месяце (перенос для стабильного имущества)
 function carriedVal(id,k){const ks=monthList().filter(x=>x<k).reverse();for(const x of ks){const m=S.months[x];const v=(m&&m.values)?m.values[id]:undefined;if(v!=null&&v!=='')return +v;}return null;}
@@ -565,8 +517,6 @@ function itemValUSD(id,k){const it=S.items.find(x=>x.id===id);if(!it)return 0;
   if(v==null){if(isAutoAcct(it))return accountExpectedUSD(id,k);return 0;} // reserve/activity/liability/selfReinvest: значение = прошлый остаток + доход сюда + транзакции (не рыночная переоценка). Для liability транзакция «на долг» корректно гасит его, т.к. его сумма хранится отрицательной
   return toUSD(v,it.currency,k);}
 function catColor(name){const c=S.categories.find(c=>c.name===name);return c?c.color:'#8a91a1';}
-function catGroup(name){const c=S.categories.find(c=>c.name===name);return c?c.group:'asset';}
-
 /* ---- график погашения долга (обязательства: вручную / ежемесячно / график платежей) ----
    Остаток долга (в валюте позиции) и так считается сам из транзакций (accountValueNative) — здесь
    мы только СРАВНИВАЕМ его с тем, что «должно было быть оплачено по плану на сегодня», чтобы поймать
@@ -639,8 +589,6 @@ function isActiveIncomeItem(i){return (i.incomeType||i.group)==='activity';} // 
 function passiveIncomeUSD(k){let s=S.items.reduce((a,i)=>a+((isCashIncome(i,k)&&!isActiveIncomeItem(i))?monthIncomeUSD(i.id,k):0),0);const m=S.months[k];if(m&&m.extra)m.extra.forEach(e=>{if(e.amount&&e.type!=='active'&&e.type!=='capital')s+=toUSD(+e.amount,e.cur||'USD',k);});return s;}
 function activeIncomeUSD(k){let s=S.items.reduce((a,i)=>a+((isCashIncome(i,k)&&isActiveIncomeItem(i))?monthIncomeUSD(i.id,k):0),0);const m=S.months[k];if(m&&m.extra)m.extra.forEach(e=>{if(e.amount&&e.type==='active')s+=toUSD(+e.amount,e.cur||'USD',k);});return s;}
 function moExtra(k){const m=mo(k);if(!m.extra)m.extra=[];return m.extra;}
-function extraTotalUSD(k){const m=S.months[k];if(!m||!m.extra)return 0;return m.extra.reduce((s,e)=>s+(e.amount?toUSD(+e.amount,e.cur||'USD',k):0),0);}
-function fundsTotalUSD(k){const m=S.months[k];if(!m)return 0;return S.fundAccounts.reduce((s,a)=>{const v=m.funds[a.id];return s+(v==null||v===''?0:toUSD(v,a.currency,k));},0);}
 // item pnl since first appearance
 function itemPnL(id,k){const it=S.items.find(x=>x.id===id);const cur=itemValUSD(id,k);
   const ks=monthList().filter(x=>x<=k);let first=null;for(const x of ks){if(itemVal(id,x)!=null){first=itemValUSD(id,x);break;}}
@@ -681,7 +629,7 @@ function render(){
   const ra=document.getElementById('repayAlerts');
   if(ra){const alerts=repayAlerts();ra.innerHTML=alerts.length?`<div class="panel" style="border:1px solid var(--liab);margin:14px 0"><div class="panel-b" style="display:flex;flex-direction:column;gap:8px;padding:12px 16px">${alerts.map(a=>{const over=a.kind==='overdue';const amtTxt=hideAmt?'•••':(+a.row.amount).toLocaleString('ru-RU')+' '+a.item.currency;return `<div style="display:flex;align-items:center;gap:10px"><span style="font-size:18px">${over?'⚠':'⏰'}</span><div><b>${esc(a.item.name)}</b> — ${over?'просрочен платёж от '+a.row.date:'платёж '+a.row.date}: <span class="${over?'neg':''}">${amtTxt}</span>${over&&a.count>1?` <span class="muted">(+ ещё ${a.count-1})</span>`:''}</div></div>`;}).join('')}</div></div>`:'';}
   const v=document.getElementById('view');
-  v.innerHTML={dash:viewDash,capital:viewCapital,entry:viewEntry,funds:viewFunds,history:viewHistory,manage:viewManage,settings:viewSettings}[tab]();
+  v.innerHTML={dash:viewDash,capital:viewCapital,entry:viewEntry,history:viewHistory,manage:viewManage,settings:viewSettings}[tab]();
   if(tab==='dash')drawDash();
   document.getElementById('subtitle').textContent=S.items.length?`${S.items.length} позиций · ${monthList().length} мес · база ${S.baseCurrency}`:'Активы · Пассивы · Обязательства';
 }
@@ -969,7 +917,6 @@ function navM(d){const nk=shiftMonth(curMonth,d);
     if(nk>thisMonth()){toast('Этот месяц ещё не наступил');return;} // нельзя создать/открыть календарно будущий месяц
   }
   curMonth=nk;render();try{ensureMonthCryptoPx(nk,{silent:true});}catch(e){}}
-function setV(id,f,val){mo(curMonth)[f][id]=val===''?null:+val;save();updTot();}
 // остаток: вводится в выбранной валюте, ХРАНИТСЯ в валюте позиции (для USD-позиций = в долларах)
 function setBalAmt(id,val){const it=S.items.find(x=>x.id===id);const m=mo(curMonth);const bcur=(m.valuesCur&&m.valuesCur[id])||(it?it.currency:'USD');m.valuesExpr=m.valuesExpr||{};
   const num=parseExpr(val);
@@ -992,39 +939,12 @@ function balInputHTML(i,k){const m=mo(k);const bcur=(m.valuesCur&&m.valuesCur[i.
 function setIncomeAmt(id,val){const m=mo(curMonth);const it=S.items.find(x=>x.id===id);const cur=(m.incomeCur&&m.incomeCur[id])||(it?it.currency:'USD');m.incomeExpr=m.incomeExpr||{};const num=parseExpr(val);if(num==null){m.income[id]=null;m.incomeExpr[id]='';}else{m.incomeExpr[id]=(''+val);m.income[id]=toUSD(num,cur,curMonth);}save();updTot();}
 function setIncomeCur(id,cur){const m=mo(curMonth);m.incomeCur=m.incomeCur||{};m.incomeCur[id]=cur;save();render();}
 function setRate(v){mo(curMonth).rate=v===''?0:+v;save();}
-function setFund(id,v){mo(curMonth).funds[id]=v===''?null:+v;save();}
-function setCF(f,v){mo(curMonth).cashflow[f]=v===''?0:+v;save();}
 function addExtra(){moExtra(curMonth).push({name:'',amount:null,cur:display==='RUB'?'RUB':'USD'});save();render();}
 function setExtra(idx,f,v){const e=moExtra(curMonth)[idx];if(!e)return;e[f]=(f==='amount')?(v===''?null:+v):v;save();if(f==='to'||f==='cur'||f==='type')render();else updTot();}
 function delExtra(idx){const a=moExtra(curMonth);if(idx>=0&&idx<a.length){a.splice(idx,1);save();render();}}
 function updTot(){/* лёгкое обновление итога дохода без ре-рендера (иначе слетает фокус в поле) */const e=document.getElementById('incTotal');if(e)e.textContent='пассивный '+fmt(passiveIncomeUSD(curMonth),curMonth)+' · всего '+fmt(totalIncomeUSD(curMonth),curMonth);}
 
 /* ---------- FUNDS / CASH FLOW ---------- */
-function viewFunds(){
-  const k=curMonth;const m=mo(k);
-  let frows=S.fundAccounts.map(a=>{const v=m.funds[a.id];const usd=v==null?0:toUSD(v,a.currency,k);
-    return `<tr><td>${esc(a.name)}</td><td class="${usd<0?'neg':''}">${v==null?'<span class=muted>—</span>':fmt(usd,k)}</td><td class="muted">${a.currency}</td></tr>`;}).join('');
-  const funds=fundsTotalUSD(k);
-  const cf=m.cashflow;const bal=(cf.income||0)-(cf.expense||0);
-  // 50/30/20 plan on income
-  const inc=cf.income||0;
-  const plan=[['Жизнь / нужное',0.5],['Развлечения / стиль',0.3],['Будущее / инвестиции',0.2]];
-  let planRows=plan.map(([n,p])=>`<tr><td>${n}</td><td class="muted">${(p*100)|0}%</td><td>${fmt(inc*p,k)}</td></tr>`).join('');
-  return `<div class="panel"><div class="panel-h"><h2>Текущие средства</h2></div>
-    <div class="panel-b"><div class="card" style="box-shadow:none;border:none;padding:0;margin-bottom:8px"><div class="lbl">Доступно тратить</div><div class="val">${fmt(funds,k)}</div></div></div>
-    <div class="scroll-x"><table><thead><tr><th>Счёт</th><th>Баланс</th><th>Вал.</th></tr></thead><tbody>${frows||'<tr><td class=muted colspan=3>Нет счетов — добавьте на вкладке «Активы»</td></tr>'}</tbody></table></div></div>
-   <div class="two-col">
-    <div class="panel"><div class="panel-h"><h2>Доход / расход · ${mLabel(k)}</h2></div><div class="panel-b">
-      <div class="grid cards" style="grid-template-columns:1fr 1fr 1fr">
-        <div class="card" style="box-shadow:none"><div class="lbl">Доход</div><div class="val pos" style="font-size:20px">${fmt(inc,k)}</div></div>
-        <div class="card" style="box-shadow:none"><div class="lbl">Расход</div><div class="val neg" style="font-size:20px">${fmt(cf.expense||0,k)}</div></div>
-        <div class="card" style="box-shadow:none"><div class="lbl">Сальдо</div><div class="val ${sign(bal)}" style="font-size:20px">${fmt(bal,k)}</div></div>
-      </div></div></div>
-    <div class="panel"><div class="panel-h"><h2>Бюджет 50 / 30 / 20</h2></div>
-      <div class="scroll-x"><table><thead><tr><th>Корзина</th><th>Доля</th><th>Сумма</th></tr></thead><tbody>${planRows}</tbody></table></div>
-      <div class="panel-b hint">От дохода за месяц. Настройте доли под себя позже.</div></div>
-   </div>`;
-}
 
 /* ---------- HISTORY ---------- */
 // удалить ПОСЛЕДНИЙ месяц целиком — напр. случайно созданный будущий месяц (нечаянный переход вперёд до фикса navM)
@@ -1139,17 +1059,6 @@ async function ensureMonthFxHistorical(k,cur){
 // УГОДНО в истории, не обязательно рядом по времени — см. fxRate()) вместо актуального на свою дату. Это и
 // заметил юзер: позиция в THB с перенесённым значением показывала одинаковый $-эквивалент много месяцев
 // подряд. Бэкафилл — та же идея, что ensureMonthCryptoPx/backfillMonthlyCryptoPx, но для валютных курсов.
-async function backfillMonthlyFx(){
-  const ks=monthList();if(!ks.length){toast('Нет месяцев');return;}
-  // только реально используемые позициями валюты — иначе при десятках месяцев это лишние сотни запросов
-  // (видел юзер: ~1.5 мин на 59 мес × 5 валют) ради валют, которых ни у одной позиции и нет
-  const used=new Set(S.items.map(i=>i.currency));
-  const curs=FX_FETCH_CURRENCIES.filter(c=>(!S.fxEnabled||S.fxEnabled[c]!==false)&&used.has(c));
-  if(!curs.length){toast('Нет включённых валют, которые реально используются в позициях');return;}
-  toast('Восстанавливаю курсы по месяцам ('+curs.join(', ')+')… это займёт время');
-  for(const k of ks)for(const c of curs)await ensureMonthFxHistorical(k,c);
-  render();toast('Готово: курсы валют зафиксированы по месяцам');
-}
 // смена валюты позиции С ПЕРЕСЧЁТОМ истории (не просто переименование поля): каждое уже введённое значение
 // месяца переводится в $ по курсу СТАРОЙ валюты за тот месяц, затем — в новую валюту по курсу той же даты
 // (исторический курс подтягивается автоматически, если за этот месяц ещё не зафиксирован). Без этого смена
@@ -1185,13 +1094,6 @@ function convertItemCurrencyModal(id){
       toast(`Готово: пересчитано месяцев — ${res.changed}${res.failed?`, из них без точной истории курса — ${res.failed}`:''}`);
       return false;
     });
-}
-function reapplyFxAdjustConfirm(){
-  const curs=Object.keys(S.fxAdjust||{}).filter(c=>S.fxAdjust[c]);
-  if(!curs.length){toast('Сначала впишите поправку хотя бы для одной валюты');return;}
-  confirmModal('Применить поправку к истории?',`Пересчитает уже зафиксированные курсы прошлых месяцев (${curs.join(', ')}) с учётом поправки. Можно запускать повторно (напр. если измените процент позже) — пересчёт всегда идёт от исходного курса, без повторного домножения.`,()=>{
-    const n=reapplyFxAdjust();render();toast(n?`Пересчитано: ${n}`:'Нечего пересчитывать');
-  });
 }
 /* авто-загрузка актуальных курсов (open.er-api.com, USD-based, CORS ok, без ключа) */
 /* ---- живые цены крипты (coingecko) ---- */
@@ -1268,16 +1170,11 @@ function viewSettings(){
      <div class="hint" style="margin-bottom:10px">Значения можно вносить в любой валюте — у каждой позиции, счёта и «прочего дохода» своя. Всё пересчитывается в доллары. Сколько единиц валюты за <b>1&nbsp;$</b>:</div>
      ${FX_FETCH_CURRENCIES.map(c=>{const on=!S.fxEnabled||S.fxEnabled[c]!==false;return `<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:5px;cursor:pointer" title="Подтягивать этот курс автообновлением (кнопка «Обновить» / фон раз в 12ч)"><input type="checkbox" ${on?'checked':''} onchange="setFxEnabled('${c}',this.checked)"></label><span style="width:52px">1 $ =</span><input class="inp" style="max-width:150px" type="number" step="any" value="${(S.fx&&S.fx[c]!=null&&S.fx[c]!=='')?S.fx[c]:DEFAULT_FX[c]}" oninput="setFx('${c}',this.value)"><span class="muted">${c} ${CUR_SYMBOL[c]}</span><input class="inp" style="max-width:80px" type="number" step="any" placeholder="0" value="${(S.fxAdjust&&S.fxAdjust[c]!=null&&S.fxAdjust[c]!=='')?S.fxAdjust[c]:''}" oninput="setFxAdjust('${c}',this.value)" title="Поправка на ваш реальный курс обмена (P2P/обменник), %. Применяется при автозагрузке: курс×(1+поправка/100)"><span class="muted">поправка %</span></div>`;}).join('')}
      <div class="hint" style="margin-top:8px">Рубль: курс фиксируется отдельно за каждый месяц (во вкладке «Заполнить месяц») и дальше не меняется; тут — курс по умолчанию для новых месяцев. «Поправка» — разница между официальным курсом и тем, что реально получаете при конвертации (обычно отрицательная) — применяется только при нажатии «Обновить»/автообновлении, на курс, введённый вручную, не влияет.</div>
-     <button class="btn ghost sm" style="margin-top:10px" onclick="reapplyFxAdjustConfirm()">↻ Применить поправку к истории</button>
-     <div class="hint" style="margin-top:6px">Пересчитывает курсы уже зафиксированных прошлых месяцев с учётом поправки выше (не трогает курсы, введённые вручную). Можно нажимать повторно, если поправку потом измените.</div>
-     <button class="btn ghost sm" style="margin-top:10px" onclick="backfillMonthlyFx()">📥 Восстановить курсы по месяцам (на 1-е число)</button>
-     <div class="hint" style="margin-top:6px">Без этого месяцы без СВОЕГО зафиксированного курса (напр. позиция завели в THB, а автообновление курса ни разу не фиксировалось в тот месяц) показывают один и тот же «запасной» курс для всех месяцев подряд вместо актуального на ту дату. Подтягивает исторический курс (frankfurter.dev) на 1-е число для каждого месяца без своего курса — не трогает уже зафиксированные.</div>
    </div></div>
    <div class="panel"><div class="panel-h"><h2>Цены крипты</h2><span class="muted">${cryptoPxUpdatedLabel()} <button class="btn ghost sm" onclick="fetchCryptoPrices()">🔄 Обновить</button></span></div><div class="panel-b">
      ${(()=>{const syms=[...new Set(S.items.filter(i=>i.byQty&&i.symbol).map(i=>i.symbol))];if(!syms.length)return '<div class="hint">Нет крипто-позиций «по количеству».</div>';
       return syms.map(s=>`<div style="display:flex;gap:12px;align-items:center;margin-bottom:6px"><span style="width:56px;font-weight:600">${esc(s)}</span><span>$${(S.cryptoPx&&S.cryptoPx[s]!=null)?(+S.cryptoPx[s]).toLocaleString('ru-RU',{maximumFractionDigits:4}):'—'}</span></div>`).join('');})()}
      <div class="hint" style="margin-top:6px">Живая цена — только для справки здесь. <b>Для расчёта стоимости по месяцам курс фиксируется на 1-е число месяца</b> (автоматически, история coingecko) и дальше не меняется, пока месяц открыт/закрыт — живая цена на него больше не влияет.</div>
-     <button class="btn ghost sm" style="margin-top:8px" onclick="backfillMonthlyCryptoPx()">📥 Восстановить курсы по месяцам (на 1-е число)</button>
    </div></div>
    <div class="panel"><div class="panel-h"><h2>Доход и расход</h2></div><div class="panel-b">
      <div class="field"><label>Считать «Баланс дохода/расходов» начиная с месяца</label><input class="inp" style="max-width:150px" type="month" value="${S.cashflowStartMonth||'2026-09'}" oninput="setCashflowStart(this.value)"></div>
@@ -1285,17 +1182,16 @@ function viewSettings(){
    </div></div>
    <div class="panel"><div class="panel-h"><h2>Данные</h2><span class="muted" id="syncStatus" style="font-size:11.5px">${syncStatusText()}</span></div><div class="panel-b">
      <div class="toolbar" style="margin-bottom:12px">
-       <button class="btn ghost" onclick="connectFile()" title="Автосохранение в файл (Chrome/Edge): выбери файл один раз — дальше всё пишется само">🔗 Файл</button>
        <button class="btn ghost" onclick="exportJSON()">⤓ Бэкап .json</button>
        <button class="btn ghost" onclick="copyBackupToClipboard()" title="Надёжнее, чем скачивание файла — особенно внутри Telegram, где скачивание часто не работает">📋 Копировать бэкап</button>
        <button class="btn ghost" onclick="document.getElementById('imp').click()">⤒ Загрузить файл</button>
        <button class="btn ghost" onclick="pasteImport()">⤒ Вставить JSON</button>
-       <button class="btn ghost" onclick="exportCSV()">⤓ История .csv</button>
-       ${CLOUD?'<button class="btn ghost" onclick="cloudPush()">☁ Синхронизировать</button><button class="btn ghost" onclick="clearCloudConfirm()">🗑 Очистить облако</button>':''}</div>
+    </div>
      ${CLOUD?'<div class="hint" style="margin-bottom:16px">Данные лежат в CloudStorage этого Telegram-бота (привязаны к твоему аккаунту и именно этому боту, больше никто их не видит) — автоматически синхронизируются между устройствами при каждой правке + доп. проверка раз в 30 сек. «Очистить облако» — удалить эту копию насовсем (локальные данные на устройстве останутся).</div>'
        :(fileHandle?`<div class="hint" style="margin-bottom:16px">Данные сохраняются в файл «${esc(fileHandle.name)}» на этом устройстве (плюс кэш в браузере). Если сменишь устройство/браузер — перенеси через этот файл или «⤓ Бэкап».</div>`
-       :'<div class="hint" style="margin-bottom:16px">Данные хранятся только в этом браузере (localStorage) — нигде больше. Делайте бэкап регулярно или подключи «🔗 Файл».</div>')}
-     <button class="btn danger sm" onclick="resetAll()">Стереть всё</button></div></div>
+       :'<div class="hint" style="margin-bottom:16px">Данные хранятся только в этом браузере (localStorage) — нигде больше. Делайте бэкап регулярно.</div>')}
+     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px"><div class="hint" style="margin-bottom:8px">Опасная зона — действия необратимы, сначала сделай бэкап.</div>
+     ${CLOUD?'<button class="btn danger sm" onclick="clearCloudConfirm()">Очистить облако</button> ':''}<button class="btn danger sm" onclick="resetAll()">Стереть всё</button></div></div></div>
    ${IN_TG?`<div class="panel"><div class="panel-h"><h2>Диагностика Telegram</h2></div><div class="panel-b">
      <div class="hint">platform: ${esc(TG.platform||'?')} · Bot API: ${esc(TG.version||'?')} · fullscreen: ${TG.isFullscreen?'да':'нет'} · verticalSwipes: ${TG.isVerticalSwipesEnabled===false?'выключен':'включён'}</div>
    </div></div>`:''}`;
@@ -1422,12 +1318,6 @@ function catModal(idx){const c=idx!=null?S.categories[idx]:null;const g0=c?c.gro
    save();render();});}
 function delCat(n){if(S.items.some(i=>i.category===n)){toast('Категория используется');return;}S.categories=S.categories.filter(c=>c.name!==n);save();render();}
 function delCatIdx(idx){const c=S.categories[idx];if(c)delCat(c.name);}
-function fundModal(){modal('Новый счёт',`
-   <div class="field"><label>Название</label><input class="inp" id="fn" placeholder="Напр. Тинькофф"></div>
-   <div class="field"><label>Валюта</label><select class="inp" id="fc">${CURRENCIES.map(c=>`<option ${c==='RUB'?'selected':''}>${c}</option>`).join('')}</select></div>`,()=>{
-   const n=document.getElementById('fn').value.trim();if(!n){toast('Название');return false;}
-   S.fundAccounts.push({id:uid('f'),name:n,currency:document.getElementById('fc').value});save();render();});}
-function delFund(id){S.fundAccounts=S.fundAccounts.filter(a=>a.id!==id);Object.values(S.months).forEach(m=>delete m.funds[id]);save();render();}
 function dashCardsModal(){
   const body=`<div class="hint" style="margin-bottom:10px">Выбери, какие карточки показывать на «Обзоре». Карточка всё равно скрыта, если значение сейчас нулевое/неприменимо.</div>`+
     DASH_CARDS.map(([id,label])=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer"><input type="checkbox" data-card="${id}" ${dashCardOn(id)?'checked':''}> ${esc(label)}</label>`).join('');
