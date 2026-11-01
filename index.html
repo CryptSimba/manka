@@ -1243,7 +1243,7 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
       <div class="hint" style="margin-top:6px">${it&&it.repayMode==='schedule'?'Сами даты и суммы редактируются в карточке позиции (клик по названию в «Капитал») — там же виден статус по каждому платежу и просрочки.':'Подсвечивает просрочку платежа баннером наверху (на любой вкладке) и не даёт забыть.'}</div>
     </div>
     <div style="border-top:1px solid var(--border);margin:6px 0 12px;padding-top:12px"><div style="font-size:12.5px;color:var(--muted);font-weight:600;margin-bottom:8px">ДОХОД</div>
-    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mhasinc" ${it&&it.noIncome?'':'checked'} onchange="itemModalHasInc()"> Приносит месячный доход</label><div class="hint">Снять, если актив только растёт в цене (напр. BTC, который лежит). Тогда доходность = от роста цены.</div></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mhasinc" ${it&&it.noIncome?'':'checked'}> Приносит месячный доход</label><div class="hint">Снять, если актив только растёт в цене (напр. BTC, который лежит). Тогда доходность = от роста цены.</div></div>
     </div>
     <div class="field"><label>Заметка</label><input class="inp" id="mnote" value="${it?esc(it.note||''):''}"></div>`,()=>{
     const name=document.getElementById('mn').value.trim();if(!name){toast('Введите название');return false;}
@@ -1273,8 +1273,6 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
         S.items.push({id:did,name:'Рассрочка: '+name,group:'liability',category:'Рассрочки',subcategory:'',currency:cur,note:'',income:{mode:'variable'},principal:true,selfReinvest:false,cost:null,noIncome:true,byQty:false,symbol:'',spending:false,repayMode:null,repayMonthly:null,createdAt:curMonth});
         mo(curMonth).values[did]=-rest;}}
     save();render();toast('Сохранено');});}
-function itemModalIncome(){const m=document.getElementById('mim').value;document.getElementById('mincCfg').style.display=m==='variable'?'none':'block';const l=document.getElementById('mrateLbl');if(l)l.textContent=m==='percent'?'Ставка, %':'Сумма';}
-function itemModalHasInc(){const on=document.getElementById('mhasinc').checked;document.getElementById('mincomeBlock').style.display=on?'block':'none';}
 function itemModalByQty(){const on=document.getElementById('mbyqty').checked;document.getElementById('msymWrap').style.display=on?'block':'none';}
 function itemModalRepay(){const v=document.getElementById('mrepay').value;const w=document.getElementById('mrepayMonthly');if(w)w.style.display=v==='monthly'?'block':'none';}
 function itemModalGroup(g){const cats=S.categories.filter(c=>c.group===g);const wrap=document.getElementById('mcWrap');if(!wrap)return;
