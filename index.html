@@ -129,32 +129,37 @@
   .seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
   .pill{padding:5px 11px;border-radius:20px;border:1px solid var(--border);font-size:12.5px;color:var(--muted);font-weight:600}
   .pill.on{background:var(--accent-soft);color:var(--accent);border-color:transparent}
-  /* --- редизайн: газета/моно. Переопределения поверх базовых правил; откат = удалить этот блок --- */
-  :root{--bg:#f6f3ec; --panel:#fbf9f4; --panel-2:#efebe2; --border:#d6d0c2; --text:#1a1a17; --muted:#6b675c;
-    --accent:#1a1a17; --accent-soft:#e8e3d6; --green:#2f6b3a; --green-soft:#e3ebdc; --red:#a63a2b; --red-soft:#f0dfd9; --amber:#8a6a1a;
-    --asset:#2f6b3a; --passive:#8a6a1a; --liab:#a63a2b; --shadow:none; --radius:2px;
-    --font:Charter,"Iowan Old Style",Georgia,"Times New Roman",serif; --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
-  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15140f; --panel:#1c1b15; --panel-2:#25231b; --border:#3a372b;
-    --text:#ece7d9; --muted:#9a9584; --accent:#ece7d9; --accent-soft:#2e2b20; --green:#8fbf8a; --green-soft:#1f2a1c; --red:#d9806f; --red-soft:#33211c; --amber:#d0a94f;
-    --asset:#8fbf8a; --passive:#d0a94f; --liab:#d9806f; --shadow:none}}
-  :root[data-theme="dark"]{--bg:#15140f; --panel:#1c1b15; --panel-2:#25231b; --border:#3a372b; --text:#ece7d9; --muted:#9a9584; --accent:#ece7d9; --accent-soft:#2e2b20;
-    --green:#8fbf8a; --green-soft:#1f2a1c; --red:#d9806f; --red-soft:#33211c; --amber:#d0a94f; --asset:#8fbf8a; --passive:#d0a94f; --liab:#d9806f; --shadow:none}
-  body{font-size:16px}
-  h1,h2,h3{font-weight:600;letter-spacing:0}
-  .logo{border-radius:0;background:var(--text);color:var(--bg);font-family:var(--font)}
-  .card.hero{background:var(--panel);color:var(--text);border:1px solid var(--text)}
-  .card.hero .lbl,.card.hero .sub{color:var(--muted)}
-  .net-inline .val{background:none;-webkit-text-fill-color:currentColor;color:var(--text);font-weight:600}
-  .val,.num,td.n,.amt,input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
-  .btn{background:var(--text);color:var(--bg);border-radius:var(--radius)}
-  .btn.ghost{background:none;color:var(--text);border:1px solid var(--text)}
-  .icon-btn,.cur-toggle,nav.tabs,.month-nav,.inp,.modal,.pill,.chip,.tag,.toast,.bar{border-radius:var(--radius)}
-  nav.tabs{padding:0 4px;border-width:0 0 1px 0;background:var(--bg);box-shadow:none}
-  nav.tabs button{border-radius:0;border-bottom:2px solid transparent}
-  nav.tabs button.active{border-bottom-color:var(--text);background:none;color:var(--text)}
-  .modal-bg{backdrop-filter:none}
+  /* --- редизайн: стиль iOS (grouped, SF-шрифт, синий акцент). Переопределения поверх базовых правил; откат = удалить этот блок --- */
+  :root{--bg:#f2f2f7; --panel:#ffffff; --panel-2:#f2f2f7; --border:rgba(60,60,67,.16); --text:#000; --muted:#6c6c70;
+    --accent:#007aff; --accent-soft:rgba(0,122,255,.12); --green:#248a3d; --green-soft:rgba(52,199,89,.16); --red:#d70015; --red-soft:rgba(255,59,48,.12); --amber:#c93400;
+    --asset:#34c759; --passive:#ff9500; --liab:#ff3b30; --shadow:none; --radius:12px;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif; --seg:rgba(118,118,128,.12)}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000; --panel:#1c1c1e; --panel-2:#2c2c2e; --border:rgba(84,84,88,.55);
+    --text:#fff; --muted:#8e8e93; --accent:#0a84ff; --accent-soft:rgba(10,132,255,.2); --green:#30d158; --green-soft:rgba(48,209,88,.18); --red:#ff453a; --red-soft:rgba(255,69,58,.18); --amber:#ff9f0a;
+    --asset:#30d158; --passive:#ff9f0a; --liab:#ff453a; --shadow:none; --seg:rgba(118,118,128,.24)}}
+  :root[data-theme="dark"]{--bg:#000; --panel:#1c1c1e; --panel-2:#2c2c2e; --border:rgba(84,84,88,.55); --text:#fff; --muted:#8e8e93; --accent:#0a84ff; --accent-soft:rgba(10,132,255,.2);
+    --green:#30d158; --green-soft:rgba(48,209,88,.18); --red:#ff453a; --red-soft:rgba(255,69,58,.18); --amber:#ff9f0a; --asset:#30d158; --passive:#ff9f0a; --liab:#ff453a; --shadow:none; --seg:rgba(118,118,128,.24)}
+  body{font-size:16px;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-weight:600;letter-spacing:-.01em}
+  .logo{border-radius:10px;background:var(--accent);color:#fff;font-weight:700}
+  .panel,.card,.modal{border:none;border-radius:var(--radius);box-shadow:none}
   .card:hover{transform:none;box-shadow:none}
-  nav.tabs button.active{box-shadow:none}
+  .card.hero{background:var(--accent);color:#fff}
+  .card.hero .lbl,.card.hero .sub{color:rgba(255,255,255,.8)}
+  .net-inline .val{background:none;-webkit-text-fill-color:currentColor;color:var(--text);font-weight:700}
+  nav.tabs{background:var(--seg);border:none;padding:2px;border-radius:10px;box-shadow:none;gap:2px}
+  nav.tabs button{border-radius:8px;font-weight:500;color:var(--text)}
+  nav.tabs button.active{background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .btn{background:var(--accent);color:#fff;border-radius:10px;font-weight:600}
+  .btn.ghost{background:var(--accent-soft);color:var(--accent);border:none}
+  .btn.danger{background:var(--red-soft);color:var(--red);border:none}
+  .icon-btn,.cur-toggle,.month-nav,.pill{border:none;background:var(--seg);border-radius:9px;color:var(--text)}
+  .pill.on,.cur-toggle button.on{background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .inp{border:none;background:var(--panel-2);border-radius:10px}
+  .chip,.tag,.bar,.x{border-radius:8px}
+  .modal-bg{background:rgba(0,0,0,.35);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .modal{border-radius:16px}
+  .toast{border-radius:14px;background:rgba(40,40,42,.92);color:#fff}
 </style>
 </head>
 <body>
