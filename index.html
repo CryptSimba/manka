@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src https://api.frankfurter.dev https://api.coingecko.com https://open.er-api.com; object-src 'none'; base-uri 'none'"> <!-- unsafe-inline нужен из-за inline-обработчиков onclick -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Финансовый трекер</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -128,12 +129,38 @@
   .seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
   .pill{padding:5px 11px;border-radius:20px;border:1px solid var(--border);font-size:12.5px;color:var(--muted);font-weight:600}
   .pill.on{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+  /* --- редизайн: газета/моно. Переопределения поверх базовых правил; откат = удалить этот блок --- */
+  :root{--bg:#f6f3ec; --panel:#fbf9f4; --panel-2:#efebe2; --border:#d6d0c2; --text:#1a1a17; --muted:#6b675c;
+    --accent:#1a1a17; --accent-soft:#e8e3d6; --green:#2f6b3a; --green-soft:#e3ebdc; --red:#a63a2b; --red-soft:#f0dfd9; --amber:#8a6a1a;
+    --asset:#2f6b3a; --passive:#8a6a1a; --liab:#a63a2b; --shadow:none; --radius:2px;
+    --font:Charter,"Iowan Old Style",Georgia,"Times New Roman",serif; --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15140f; --panel:#1c1b15; --panel-2:#25231b; --border:#3a372b;
+    --text:#ece7d9; --muted:#9a9584; --accent:#ece7d9; --accent-soft:#2e2b20; --green:#8fbf8a; --green-soft:#1f2a1c; --red:#d9806f; --red-soft:#33211c; --amber:#d0a94f;
+    --asset:#8fbf8a; --passive:#d0a94f; --liab:#d9806f; --shadow:none}}
+  :root[data-theme="dark"]{--bg:#15140f; --panel:#1c1b15; --panel-2:#25231b; --border:#3a372b; --text:#ece7d9; --muted:#9a9584; --accent:#ece7d9; --accent-soft:#2e2b20;
+    --green:#8fbf8a; --green-soft:#1f2a1c; --red:#d9806f; --red-soft:#33211c; --amber:#d0a94f; --asset:#8fbf8a; --passive:#d0a94f; --liab:#d9806f; --shadow:none}
+  body{font-size:16px}
+  h1,h2,h3{font-weight:600;letter-spacing:0}
+  .logo{border-radius:0;background:var(--text);color:var(--bg);font-family:var(--font)}
+  .card.hero{background:var(--panel);color:var(--text);border:1px solid var(--text)}
+  .card.hero .lbl,.card.hero .sub{color:var(--muted)}
+  .net-inline .val{background:none;-webkit-text-fill-color:currentColor;color:var(--text);font-weight:600}
+  .val,.num,td.n,.amt,input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .btn{background:var(--text);color:var(--bg);border-radius:var(--radius)}
+  .btn.ghost{background:none;color:var(--text);border:1px solid var(--text)}
+  .icon-btn,.cur-toggle,nav.tabs,.month-nav,.inp,.modal,.pill,.chip,.tag,.toast,.bar{border-radius:var(--radius)}
+  nav.tabs{padding:0;border-width:0 0 1px 0;background:none}
+  nav.tabs button{border-radius:0;border-bottom:2px solid transparent}
+  nav.tabs button.active{border-bottom-color:var(--text);background:none;color:var(--text)}
+  .modal-bg{backdrop-filter:none}
+  .card:hover{transform:none;box-shadow:none}
+  nav.tabs button.active{box-shadow:none}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="logo">₿</div>
+    <div class="logo">Ф</div>
     <div class="title-block"><h1>Финансовый трекер</h1><p id="subtitle">Активы · Пассивы · Обязательства</p></div>
     <div class="month-nav" id="monthNav" style="display:none"></div>
     <div class="sp"></div>
@@ -157,24 +184,27 @@ const LS='fintracker_v2';
 const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 const IN_TG = !!(TG && TG.platform && TG.platform!=='unknown'); // реальный запуск внутри Telegram
 const CLOUD = !!(IN_TG && TG.CloudStorage && typeof TG.CloudStorage.setItem==='function');
-function csGet(key){return new Promise(r=>{try{TG.CloudStorage.getItem(key,(e,v)=>r(e?null:v));}catch(_){r(null);}});}
-function csGetItems(keys){return new Promise(r=>{try{TG.CloudStorage.getItems(keys,(e,v)=>r(e?{}:(v||{})));}catch(_){r({});}});}
+function csGet(key){return new Promise(r=>{try{TG.CloudStorage.getItem(key,(e,v)=>r(e?undefined:v));}catch(_){r(undefined);}});} // undefined = ошибка чтения (НЕ «ключа нет», тот даёт '')
+function csGetItems(keys){return new Promise(r=>{try{TG.CloudStorage.getItems(keys,(e,v)=>r(e?null:(v||{})));}catch(_){r(null);}});} // null = ошибка чтения
 function csSet(key,val){return new Promise(r=>{try{TG.CloudStorage.setItem(key,val,(e,ok)=>r(!e&&ok));}catch(_){r(false);}});}
 function csRemove(keys){return new Promise(r=>{try{TG.CloudStorage.removeItems(keys,()=>r());}catch(_){r();}});}
 function b64enc(s){return btoa(unescape(encodeURIComponent(s)));}
 function b64dec(s){return decodeURIComponent(escape(atob(s)));}
-let pushT, cloudBusy=false, pushPending=false;
+let pushT, cloudBusy=false, pushPending=false; let cloudT=0, cloudBlocked=false; // cloudBlocked: читать облако не удалось или там версия новее — не пушим до перезапуска
+  // t из ft_meta, который мы последний раз загрузили или записали сами
 function scheduleCloudPush(){ if(!CLOUD)return; clearTimeout(pushT); pushT=setTimeout(cloudPush,1500); }
 async function cloudPush(){
-  if(!CLOUD)return;
+  if(!CLOUD||cloudBlocked)return;
   if(cloudBusy){ pushPending=true; return; } // уже идёт отправка — не теряем правку, отправим повторно сразу после
   cloudBusy=true;
   try{
     const b64=b64enc(JSON.stringify(S)); const CH=3800; const n=Math.max(1,Math.ceil(b64.length/CH));
-    let oldN=0; const om=await csGet('ft_meta'); if(om){try{oldN=JSON.parse(om).n||0;}catch(_){}}
+    let oldN=0, oldT=0; const om=await csGet('ft_meta'); if(om===undefined)throw new Error('cloud read failed'); if(om){try{const o=JSON.parse(om);oldN=o.n||0;oldT=o.t||0;}catch(_){}}
+    // защита от затирания: в облаке уже есть версия, которую мы не загружали/не писали, или у нас пусто — не перезаписываем
+    if(om && (oldT!==cloudT || !(S.items&&S.items.length))){ cloudBlocked=true; cloudBusy=false; setSync('☁ синк остановлен'); modal('Синк остановлен','В облаке другая версия данных (или здесь пусто). Ничего не перезаписано. Скачай бэкап текущих данных, затем перезапусти приложение — оно загрузит облако.<div style="margin-top:10px"><button class="btn" onclick="exportJSON()">⤓ Бэкап</button></div>'); return; }
     for(let i=0;i<n;i++){ await csSet('ft_'+i, b64.slice(i*CH,(i+1)*CH)); }
     if(oldN>n){const rm=[];for(let i=n;i<oldN;i++)rm.push('ft_'+i);await csRemove(rm);}
-    await csSet('ft_meta', JSON.stringify({n:n,t:nowTs(),v:2}));
+    const t=nowTs(); await csSet('ft_meta', JSON.stringify({n:n,t:t,v:2})); cloudT=t;
     lastCloudSyncTs=nowTs();
     setSync('☁ '+syncAgoLabel());
   }catch(e){ setSync('☁ ошибка синка'); }
@@ -183,13 +213,13 @@ async function cloudPush(){
 }
 async function cloudPull(){
   if(!CLOUD)return null;
-  const meta=await csGet('ft_meta'); if(!meta)return null;
-  let m; try{m=JSON.parse(meta);}catch(_){return null;} if(!m||!m.n)return null;
-  if(m.t)lastCloudSyncTs=m.t; // последняя точка синка из облака (до нашего первого пуша в этой сессии)
+  const meta=await csGet('ft_meta'); if(meta===undefined)throw new Error('cloud read failed'); if(!meta)return null;
+  let m; try{m=JSON.parse(meta);}catch(_){throw new Error('cloud meta corrupt');} if(!m||!m.n)return null;
+  cloudT=m.t||0; if(m.t)lastCloudSyncTs=m.t; // последняя точка синка из облака (до нашего первого пуша в этой сессии)
   const keys=[];for(let i=0;i<m.n;i++)keys.push('ft_'+i);
-  const items=await csGetItems(keys);
+  const items=await csGetItems(keys); if(!items)throw new Error('cloud read failed');
   let b64='';for(let i=0;i<m.n;i++){ b64+=(items['ft_'+i]||''); }
-  try{ return JSON.parse(b64dec(b64)); }catch(_){ return null; }
+  try{ return JSON.parse(b64dec(b64)); }catch(_){ throw new Error('cloud data corrupt'); }
 }
 function nowTs(){try{return Date.now();}catch(_){return 0;}}
 function setSync(txt){const el=document.getElementById('syncStatus');if(el)el.textContent=txt;}
@@ -247,10 +277,11 @@ async function initApp(){
   try{const lm=latestMonth();if(lm)ensureMonthCryptoPx(lm,{silent:true});}catch(e){}
   if(CLOUD){
     setSync('☁ загрузка…');
-    const cloud=await cloudPull();
+    let cloud=null;
+    try{ cloud=await cloudPull(); }catch(_){ cloudBlocked=true; setSync('☁ облако недоступно — синк выключен'); toast('Облако не прочиталось: синк выключен, данные не тронуты'); }
     cloudPullDone=true;
     if(pendingLocalEdit){ if(S.items&&S.items.length)scheduleCloudPush(); setSync('☁ локальные правки сохранены'); } // правка сделана до завершения загрузки — не затираем её пришедшим снапшотом
-    else if(cloud && cloud.items){ S=cloud; ['categories','fundAccounts','items'].forEach(k=>S[k]=S[k]||[]); S.months=S.months||{}; if(!S.fx)S.fx=Object.assign({},DEFAULT_FX); display=S.display||'USD'; _monthListCache=null; curMonth=latestMonth()||thisMonth(); try{localStorage.setItem(LS,JSON.stringify(S));}catch(_){} render(); setSync('☁ '+syncAgoLabel()); }
+    else if(cloud && cloud.items){ try{ if(S.items&&S.items.length)localStorage.setItem(LS+'_prev',JSON.stringify(S)); }catch(_){} /* копия локальных данных перед заменой облаком */ S=cloud; ['categories','fundAccounts','items'].forEach(k=>S[k]=S[k]||[]); S.months=S.months||{}; if(!S.fx)S.fx=Object.assign({},DEFAULT_FX); display=S.display||'USD'; _monthListCache=null; curMonth=latestMonth()||thisMonth(); try{localStorage.setItem(LS,JSON.stringify(S));}catch(_){} render(); setSync('☁ '+syncAgoLabel()); }
     else { if(S.items&&S.items.length){ scheduleCloudPush(); } else { setSync('☁ пусто — импортируйте бэкап'); } }
     setInterval(()=>{ if(!cloudBusy)cloudPush(); },30000); // подстраховка раз в 30с — на случай если дебаунс пропал (свёрнутая вкладка и т.п.)
     setInterval(tickSyncStatus,5000); // живой «синхр. N сек/мин назад» на вкладке Настройки
@@ -639,7 +670,7 @@ function itemPnL(id,k){const it=S.items.find(x=>x.id===id);const cur=itemValUSD(
   return{value:cur,first:first||0,cost:hasCost?+it.cost:null,change,income:inc,total,monthInc,roi,growth,noIncome,principal};}
 
 /* ================= RENDER ================= */
-const TABS=[['dash','Обзор'],['capital','Капитал'],['entry','Заполнить месяц'],['history','История'],['manage','Активы'],['settings','⚙']];
+const TABS=[['dash','Обзор'],['capital','Капитал'],['entry','Заполнить месяц'],['history','История'],['manage','Активы'],['settings','Настройки']];
 function render(){
   document.getElementById('tabs').innerHTML=TABS.map(([id,l])=>`<button class="${tab===id?'active':''}" onclick="setTab('${id}')">${l}</button>`).join('')+(tab==='dash'?`<button style="margin-left:auto" onclick="dashCardsModal()" title="Настроить карточки">✏️</button>`:'');
   document.getElementById('curToggle').innerHTML=['USD','RUB'].map(c=>`<button class="${display===c?'on':''}" onclick="setDisplay('${c}')">${CUR_SYMBOL[c]} ${c}</button>`).join('');
@@ -1230,7 +1261,7 @@ function setCashflowStart(v){S.cashflowStartMonth=v||'2026-09';save();render();}
 function viewSettings(){
   return `<div class="panel"><div class="panel-h"><h2>Приватность</h2></div><div class="panel-b">
      <div class="hint" style="margin-bottom:10px">Пароль перед показом сумм (👁 в шапке): скрыть можно всегда без пароля, а вот показать — только зная его. ${S.hideAmtHash?'<b>Сейчас защита включена.</b>':'Сейчас без пароля — любой может нажать 👁.'}</div>
-     <button class="btn ghost sm" onclick="setHideAmtPassword()">${S.hideAmtHash?'🔑 Сменить/убрать пароль':'🔑 Задать пароль'}</button>
+     <button class="btn ghost sm" onclick="setHideAmtPassword()">${S.hideAmtHash?'🔑 Сменить/убрать пароль':'🔑 Задать пароль'}</button> <span class="muted" style="font-size:12px">только скрывает суммы на экране, данные не шифруются</span>
    </div></div>
    <div class="panel"><div class="panel-h"><h2>Валюты и курсы</h2><span class="muted">курсы от ${fxUpdatedLabel()} <button class="btn ghost sm" onclick="fetchRates()">🔄 Обновить</button></span></div><div class="panel-b">
      <div class="hint" style="margin-bottom:10px">Значения можно вносить в любой валюте — у каждой позиции, счёта и «прочего дохода» своя. Всё пересчитывается в доллары. Сколько единиц валюты за <b>1&nbsp;$</b>:</div>
@@ -1467,7 +1498,7 @@ async function copyBackupToClipboard(){
   const ta=document.getElementById('bkpText');if(ta){ta.focus();ta.select();}
 }
 function importJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);const err=validateImport(d);if(err){toast(err);return;}confirmModal('Заменить данные?','Импорт перезапишет всё.',()=>{applyImport(d);});}catch(x){toast('Ошибка файла');}e.target.value='';};r.readAsText(f);}
-function validateImport(d){if(!d||typeof d!=='object')return 'Не объект';if(!Array.isArray(d.items)||!d.items.every(x=>x.id&&x.name&&x.group))return 'Позиции: неверный формат';if(!d.months||typeof d.months!=='object')return 'Месяцы: неверный формат';if(!Object.keys(d.months).every(k=>/^\d{4}-\d{2}$/.test(k)))return 'Ключ месяца: неверный формат (YYYY-MM)';if(!Array.isArray(d.categories))return 'Категории: должен быть массив';return null;}
+function validateImport(d){if(!d||typeof d!=='object')return 'Не объект';if(!Array.isArray(d.items)||!d.items.every(x=>x&&typeof x.id==='string'&&/^[\w-]+$/.test(x.id)&&x.name&&x.group))return 'Позиции: неверный формат';if(d.items.some(x=>(x.symbol!=null&&!/^[\w-]*$/.test(x.symbol))||(x.currency!=null&&!/^[A-Za-z]{3}$/.test(x.currency))))return 'Позиции: недопустимые символы';if(!d.months||typeof d.months!=='object')return 'Месяцы: неверный формат';if(!Object.keys(d.months).every(k=>/^\d{4}-\d{2}$/.test(k)))return 'Ключ месяца: неверный формат (YYYY-MM)';if(!Array.isArray(d.categories))return 'Категории: должен быть массив';return null;}
 function applyImport(d){const err=validateImport(d);if(err){toast(err);return false;}S=d;['categories','fundAccounts','items'].forEach(k=>S[k]=S[k]||[]);S.months=S.months||{};if(!S.fx)S.fx=Object.assign({},DEFAULT_FX);display=S.display||'USD';curMonth=latestMonth()||thisMonth();save();render();toast('Загружено');return true;}
 function pasteImport(){modal('Вставить бэкап (JSON)',`<div class="field"><label>Вставь сюда содержимое файла бэкапа (.json)</label><textarea class="inp" id="pj" style="height:150px;font-size:11px;font-family:monospace" placeholder='{"version":2, ...}'></textarea></div><div class="hint">Открой свой файл бэкапа в блокноте, выдели всё (Ctrl+A), скопируй и вставь сюда. Нужно один раз — потом данные в облаке Telegram.</div>`,()=>{let d;try{d=JSON.parse(document.getElementById('pj').value);}catch(e){toast('Некорректный JSON');return false;}return applyImport(d)!==false;});}
 function exportCSV(){const ks=monthList();let L=['Месяц;Активы;Пассивы;Обязательства;ЧистыйКапитал;Доход;БалансДохРасх;НереализПрибыльРынок;НПИнвестиции;Курс'];ks.forEach(k=>{const nextK=shiftMonth(k,1);const inc=S.months[nextK]?totalIncomeUSD(nextK):'';const cs=(k>=(S.cashflowStartMonth||'2026-09'))?cashSurplusUSD(k):'';const mtm=unrealizedMTMUSD(k);const np=investmentNpState(k).unreal;L.push([mLabel(k),Math.round(disp(groupTotalUSD('asset',k),k)),Math.round(disp(groupTotalUSD('passive',k),k)),Math.round(disp(groupTotalUSD('liability',k),k)),Math.round(disp(netWorthUSD(k),k)),inc===''?'':Math.round(disp(inc,k)),cs===''?'':Math.round(disp(cs,k)),Math.round(disp(mtm,k)),Math.round(disp(np,k)),S.months[k].rate||''].join(';'));});const b=new Blob(['﻿'+L.join('\n')],{type:'text/csv;charset=utf-8'});dl(b,`fintracker-history.csv`);toast('CSV скачан');}
