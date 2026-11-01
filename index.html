@@ -1172,7 +1172,7 @@ function viewSettings(){
    </div></div>
    <div class="panel"><div class="panel-h"><h2>Валюты и курсы</h2><span class="muted">курсы от ${fxUpdatedLabel()} <button class="btn ghost sm" onclick="fetchRates()">🔄 Обновить</button></span></div><div class="panel-b">
      <div class="hint" style="margin-bottom:10px">Значения можно вносить в любой валюте — у каждой позиции, счёта и «прочего дохода» своя. Всё пересчитывается в доллары. Сколько единиц валюты за <b>1&nbsp;$</b>:</div>
-     ${FX_FETCH_curList().map(c=>{const on=curOn(c),used=usedCurs().has(c);return `<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:5px;cursor:pointer" title="Включить валюту: появится в формах и будет обновляться (кнопка «Обновить» / фон раз в 12ч)"><input type="checkbox" ${on?'checked':''} ${used||c==='RUB'?'disabled title="Используется или базовая валюта"':''} onchange="setFxEnabled('${c}',this.checked)"></label><span style="width:52px">1 $ =</span><input class="inp" style="max-width:150px" type="number" step="any" value="${(S.fx&&S.fx[c]!=null&&S.fx[c]!=='')?S.fx[c]:DEFAULT_FX[c]}" oninput="setFx('${c}',this.value)"><span class="muted">${c} ${CUR_SYMBOL[c]}</span><input class="inp" style="max-width:80px" type="number" step="any" placeholder="0" value="${(S.fxAdjust&&S.fxAdjust[c]!=null&&S.fxAdjust[c]!=='')?S.fxAdjust[c]:''}" oninput="setFxAdjust('${c}',this.value)" title="Поправка на ваш реальный курс обмена (P2P/обменник), %. Применяется при автозагрузке: курс×(1+поправка/100)"><span class="muted">поправка %</span></div>`;}).join('')}
+     ${FX_FETCH_CURRENCIES.map(c=>{const on=curOn(c),used=usedCurs().has(c);return `<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:5px;cursor:pointer" title="Включить валюту: появится в формах и будет обновляться (кнопка «Обновить» / фон раз в 12ч)"><input type="checkbox" ${on?'checked':''} ${used||c==='RUB'?'disabled title="Используется или базовая валюта"':''} onchange="setFxEnabled('${c}',this.checked)"></label><span style="width:52px">1 $ =</span><input class="inp" style="max-width:150px" type="number" step="any" value="${(S.fx&&S.fx[c]!=null&&S.fx[c]!=='')?S.fx[c]:DEFAULT_FX[c]}" oninput="setFx('${c}',this.value)"><span class="muted">${c} ${CUR_SYMBOL[c]}</span><input class="inp" style="max-width:80px" type="number" step="any" placeholder="0" value="${(S.fxAdjust&&S.fxAdjust[c]!=null&&S.fxAdjust[c]!=='')?S.fxAdjust[c]:''}" oninput="setFxAdjust('${c}',this.value)" title="Поправка на ваш реальный курс обмена (P2P/обменник), %. Применяется при автозагрузке: курс×(1+поправка/100)"><span class="muted">поправка %</span></div>`;}).join('')}
      <div class="hint" style="margin-top:8px">Рубль: курс фиксируется отдельно за каждый месяц (во вкладке «Заполнить месяц») и дальше не меняется; тут — курс по умолчанию для новых месяцев. «Поправка» — разница между официальным курсом и тем, что реально получаете при конвертации (обычно отрицательная) — применяется только при нажатии «Обновить»/автообновлении, на курс, введённый вручную, не влияет.</div>
    </div></div>
    <div class="panel"><div class="panel-h"><h2>Цены крипты</h2><span class="muted">${cryptoPxUpdatedLabel()} <button class="btn ghost sm" onclick="fetchCryptoPrices()">🔄 Обновить</button></span></div><div class="panel-b">
@@ -1233,6 +1233,7 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
       <div class="hint">Объект запишется по полной стоимости, а долг «Рассрочка: …» — на остаток, с текущего месяца. Платёж потом вносишь транзакцией «счёт → долг»; график платежей добавишь позже в карточке долга.</div></div></div>`}
     <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mbyqty" ${it&&it.byQty?'checked':''} onchange="itemModalByQty()"> Крипта: стоимость = количество × курс</label></div>
     <div class="field" id="msymWrap" style="display:${it&&it.byQty?'block':'none'}"><label>Монета</label><select class="inp" id="msym">${COIN_SYMBOLS.map(s=>`<option ${it&&it.symbol===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="field" id="mcostWrap" style="display:${it&&it.byQty?'block':'none'}"><label>Цена покупки всего, $ (для прибыли; потом считается из транзакций)</label><input class="inp" id="mcost" type="number" step="any" value="${it&&it.cost!=null&&it.cost!==''?it.cost:''}" placeholder="сколько $ заплатил за всё количество"></div>
     <div class="field" id="mrepayWrap" style="display:${g==='liability'?'block':'none'}">
       <label>График погашения</label>
       <select class="inp" id="mrepay" onchange="itemModalRepay()">
@@ -1255,12 +1256,13 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
     if(!cat){toast('Введите категорию');return false;}
     if(!S.categories.some(c=>c.name===cat&&c.group===grp))S.categories.push({name:cat,group:grp,color:PALETTE[S.categories.length%PALETTE.length]});
     const income=(it&&it.income)||{mode:'variable'}; // автоначисление дохода убрано из формы; у старых позиций настройка сохраняется
-    const principal=it?!!it.principal:false,selfReinvest=it?!!it.selfReinvest:false,subcategory=it?(it.subcategory||''):'',cost=it?(it.cost==null?null:it.cost):null;
+    const principal=it?!!it.principal:false,selfReinvest=it?!!it.selfReinvest:false,subcategory=it?(it.subcategory||''):'',cost0=it?(it.cost==null?null:it.cost):null;
     const inst=!!(document.getElementById('minst')&&document.getElementById('minst').checked&&(grp==='asset'||grp==='passive'));
     const totalRaw=document.getElementById('mtotal')?document.getElementById('mtotal').value:'',restRaw=document.getElementById('mrest')?document.getElementById('mrest').value:'';
     const total=inst?(totalRaw===''?null:+totalRaw):null,rest=inst?(+restRaw||0):0;
     if(inst&&(!(total>0)||rest<0||rest>total)){toast('Рассрочка: стоимость больше нуля, остаток от 0 до стоимости');return false;}
     const noIncome=!document.getElementById('mhasinc').checked;
+    const costRaw=document.getElementById('mcost').value,cost=(document.getElementById('mbyqty').checked&&costRaw!=='')?+costRaw:cost0;
     const byQty=document.getElementById('mbyqty').checked; const symbol=byQty?document.getElementById('msym').value:'';
     const spending=it?!!it.spending:false;
     const repayModeRaw=document.getElementById('mrepay')?document.getElementById('mrepay').value:'manual';
@@ -1277,7 +1279,7 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
         S.items.push({id:did,name:'Рассрочка: '+name,group:'liability',category:'Рассрочки',subcategory:'',currency:cur,note:'',income:{mode:'variable'},principal:true,selfReinvest:false,cost:null,noIncome:true,byQty:false,symbol:'',spending:false,repayMode:null,repayMonthly:null,createdAt:curMonth});
         mo(curMonth).values[did]=-rest;}}
     save();render();toast('Сохранено');});}
-function itemModalByQty(){const on=document.getElementById('mbyqty').checked;document.getElementById('msymWrap').style.display=on?'block':'none';}
+function itemModalByQty(){const on=document.getElementById('mbyqty').checked;document.getElementById('msymWrap').style.display=on?'block':'none';document.getElementById('mcostWrap').style.display=on?'block':'none';}
 function itemModalRepay(){const v=document.getElementById('mrepay').value;const w=document.getElementById('mrepayMonthly');if(w)w.style.display=v==='monthly'?'block':'none';}
 function itemModalGroup(g){const cats=S.categories.filter(c=>c.group===g);const wrap=document.getElementById('mcWrap');if(!wrap)return;
   wrap.innerHTML=`<label>Категория</label>${cats.length?`<select class="inp" id="mc">${cats.map(c=>`<option>${esc(c.name)}</option>`).join('')}</select>`:`<input class="inp" id="mc" placeholder="Название новой категории">`}`;
