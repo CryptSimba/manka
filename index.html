@@ -619,7 +619,7 @@ function itemPnL(id,k){const it=S.items.find(x=>x.id===id);const cur=itemValUSD(
   return{value:cur,first:first||0,cost:hasCost?+it.cost:null,change,income:inc,total,monthInc,roi,growth,noIncome,principal};}
 
 /* ================= RENDER ================= */
-const TABS=[['dash','Обзор'],['capital','Капитал'],['entry','Заполнить месяц'],['history','История'],['manage','Активы'],['settings','Настройки']];
+const TABS=[['dash','Обзор'],['capital','Капитал'],['entry','Журнал'],['history','История'],['manage','Активы'],['settings','Настройки']];
 function render(){
   document.getElementById('tabs').innerHTML=TABS.map(([id,l])=>`<button class="${tab===id?'active':''}" onclick="setTab('${id}')">${l}</button>`).join('')+(tab==='dash'?`<button style="margin-left:auto" onclick="dashCardsModal()" title="Настроить карточки">✏️</button>`:'');
   document.getElementById('curToggle').innerHTML=['USD','RUB'].map(c=>`<button class="${display===c?'on':''}" onclick="setDisplay('${c}')">${CUR_SYMBOL[c]} ${c}</button>`).join('');
@@ -790,13 +790,13 @@ function viewCapital(){
 }
 
 /* ---------- ENTRY ---------- */
-let entrySub='income';
+let entrySub='moves';
 function setEntrySub(s){entrySub=s;render();}
-const ENTRY_SUBTABS=[['income','💰 Прибыль'],['moves','🔄 Транзакции'],['balances','📊 Остатки']];
+const ENTRY_SUBTABS=[['moves','Журнал'],['income','Доходы'],['balances','Сверка остатков']];
 function viewEntry(){
   if(!S.items.length)return empty('Нет позиций','Сначала добавьте активы.','Активы',"setTab('manage')");
   const k=curMonth;const m=mo(k);const prev=prevExist(k);
-  let head=`<div class="panel"><div class="panel-h"><h2>Заполнить месяц</h2>
+  let head=`<div class="panel"><div class="panel-h"><h2>Журнал</h2>
      <div class="toolbar">
      <div class="seg" style="margin:0">${ENTRY_SUBTABS.map(([id,l])=>`<button class="pill ${entrySub===id?'on':''}" onclick="setEntrySub('${id}')">${l}</button>`).join('')}</div>
      <span class="hint">курс $→₽: <input class="inp" style="width:76px;display:inline-block" type="number" step="any" value="${m.rate||''}" placeholder="${(S.fx&&S.fx.RUB)?Math.round(S.fx.RUB):rateOf(k)}" oninput="setRate(this.value)"> <button class="btn ghost sm" onclick="fetchRates({stamp:'${k}'})">🔄 Текущий курс</button></span>
