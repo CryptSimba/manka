@@ -201,7 +201,8 @@ async function cloudPush(){
     const b64=b64enc(JSON.stringify(S)); const CH=3800; const n=Math.max(1,Math.ceil(b64.length/CH));
     let oldN=0, oldT=0; const om=await csGet('ft_meta'); if(om===undefined)throw new Error('cloud read failed'); if(om){try{const o=JSON.parse(om);oldN=o.n||0;oldT=o.t||0;}catch(_){}}
     // защита от затирания: в облаке уже есть версия, которую мы не загружали/не писали, или у нас пусто — не перезаписываем
-    if(om && (oldT!==cloudT || !(S.items&&S.items.length))){ cloudBlocked=true; cloudBusy=false; setSync('☁ синк остановлен'); modal('Синк остановлен','В облаке другая версия данных (или здесь пусто). Ничего не перезаписано. Скачай бэкап текущих данных, затем перезапусти приложение — оно загрузит облако.<div style="margin-top:10px"><button class="btn" onclick="exportJSON()">⤓ Бэкап</button></div>'); return; }
+    if(om && !(S.items&&S.items.length)){ cloudBusy=false; setSync('☁ пусто — добавь данные или импортируй бэкап'); return; } // пустым облако не перезаписываем, но и не блокируемся навсегда
+    if(om && oldT!==cloudT){ cloudBlocked=true; cloudBusy=false; setSync('☁ синк остановлен'); modal('Синк остановлен','В облаке другая версия данных (или здесь пусто). Ничего не перезаписано. Скачай бэкап текущих данных, затем перезапусти приложение — оно загрузит облако.<div style="margin-top:10px"><button class="btn" onclick="exportJSON()">⤓ Бэкап</button></div>'); return; }
     for(let i=0;i<n;i++){ await csSet('ft_'+i, b64.slice(i*CH,(i+1)*CH)); }
     if(oldN>n){const rm=[];for(let i=n;i<oldN;i++)rm.push('ft_'+i);await csRemove(rm);}
     const t=nowTs(); await csSet('ft_meta', JSON.stringify({n:n,t:t,v:2})); cloudT=t;
