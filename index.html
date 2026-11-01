@@ -1221,18 +1221,14 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
     <div class="field"><label>Название</label><input class="inp" id="mn" value="${it?esc(it.name):''}" placeholder="Напр. Крипта споты"></div>
     <div class="field"><label>Группа</label><select class="inp" id="mg" onchange="itemModalGroup(this.value)">${Object.entries(GROUPS).map(([k,v])=>`<option value="${k}" ${g===k?'selected':''}>${v}</option>`).join('')}</select></div>
     <div class="field" id="mcWrap"><label>Категория</label>${cats.length?`<select class="inp" id="mc">${cats.map(c=>`<option ${it&&it.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`:`<input class="inp" id="mc" placeholder="Название новой категории">`}</div>
-    <div class="field"><label>Подкатегория (необязательно)</label><input class="inp" id="msub" value="${it?esc(it.subcategory||''):''}" placeholder="Напр. Проект А / Группа Б" list="sublist"><datalist id="sublist">${[...new Set(S.items.map(i=>i.subcategory).filter(Boolean))].map(s=>`<option>${esc(s)}</option>`).join('')}</datalist></div>
     <div class="field"><label>Валюта</label><select class="inp" id="mcur">${CURRENCIES.map(c=>`<option ${it&&it.currency===c?'selected':(!it&&c==='USD'?'selected':'')}>${c}</option>`).join('')}</select></div>
-    ${it?'':`<div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="minst" onchange="document.getElementById('minstWrap').style.display=this.checked?'block':'none'"> Объект в рассрочке (долг создам сам)</label>
+    ${it?'':`<div class="field" id="mopenWrap"><label id="mopenLbl">Начальный остаток (в валюте позиции; для крипты — количество)</label><input class="inp" id="mopen" type="number" step="any" placeholder="сколько сейчас"></div>`}
+    ${it?'':`<div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="minst" onchange="document.getElementById('minstWrap').style.display=this.checked?'block':'none';document.getElementById('mopenWrap').style.display=this.checked?'none':'block'"> Объект в рассрочке (долг создам сам)</label>
       <div id="minstWrap" style="display:none;margin-top:8px"><div class="row"><div class="field" style="flex:1"><label>Полная стоимость (в валюте позиции)</label><input class="inp" id="mtotal" type="number" step="any"></div>
       <div class="field" style="flex:1"><label>Осталось доплатить</label><input class="inp" id="mrest" type="number" step="any"></div></div>
       <div class="hint">Объект запишется по полной стоимости, а долг «Рассрочка: …» — на остаток, с текущего месяца. Платёж потом вносишь транзакцией «счёт → долг»; график платежей добавишь позже в карточке долга.</div></div></div>`}
     <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mbyqty" ${it&&it.byQty?'checked':''} onchange="itemModalByQty()"> Крипта: стоимость = количество × курс</label></div>
     <div class="field" id="msymWrap" style="display:${it&&it.byQty?'block':'none'}"><label>Монета</label><select class="inp" id="msym">${COIN_SYMBOLS.map(s=>`<option ${it&&it.symbol===s?'selected':''}>${s}</option>`).join('')}</select></div>
-    <div class="field"><label>Цена покупки / точка нуля (в $)</label><input class="inp" id="mcost" type="number" step="any" value="${it&&it.cost!=null&&it.cost!==''?it.cost:''}" placeholder="за сколько $ купил — для расчёта прибыли"></div>
-    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mspend" ${it&&it.spending?'checked':''}> 🛒 Тратный счёт (трачу отсюда)</label><div class="hint">Для счёта в «Свободных средствах». Отмечен = <b>тратный</b> (недостача = расход; прибыль сюда не растит нереализованную). Не отмечен = <b>💰 накопительный</b> (инвестирую/коплю — прибыль сюда растит нереализованную прибыль).</div></div>
-    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mprin" ${it&&it.principal?'checked':''}> Стоимость = принципал (займ / долг / наличка)</label><div class="hint">Изменение суммы — это возврат/пополнение тела, НЕ прибыль. Прибылью считается только доход (проценты).</div></div>
-    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mself" ${it&&it.selfReinvest?'checked':''}> 💰 Доход капитализируется в тело (не выводится)</label><div class="hint">Для займа/вклада, где проценты не забираются, а прибавляются к телу. Работает в обе стороны, как переоценка: впишешь доход в «Прибыли» (и выберешь «куда зачислено» = эту же позицию) — остаток в «Остатках» подтянется сам (прошлый + начисленное). Или наоборот — впишешь новый остаток в «Остатках» — доход в «Прибыли» посчитается сам как разница.</div></div>
     <div class="field" id="mrepayWrap" style="display:${g==='liability'?'block':'none'}">
       <label>График погашения</label>
       <select class="inp" id="mrepay" onchange="itemModalRepay()">
@@ -1248,41 +1244,29 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
     </div>
     <div style="border-top:1px solid var(--border);margin:6px 0 12px;padding-top:12px"><div style="font-size:12.5px;color:var(--muted);font-weight:600;margin-bottom:8px">ДОХОД</div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mhasinc" ${it&&it.noIncome?'':'checked'} onchange="itemModalHasInc()"> Приносит месячный доход</label><div class="hint">Снять, если актив только растёт в цене (напр. BTC, который лежит). Тогда доходность = от роста цены.</div></div>
-    <div id="mincomeBlock" style="display:${it&&it.noIncome?'none':'block'}">
-    <div class="field"><label>Способ</label><select class="inp" id="mim" onchange="itemModalIncome()">
-       <option value="variable" ${meth0==='variable'?'selected':''}>Вручную (переменный) — ввожу каждый период</option>
-       <option value="percent" ${meth0==='percent'?'selected':''}>В процентах (постоянный) — % от стоимости</option>
-       <option value="amount" ${meth0==='amount'?'selected':''}>Фикс. сумма (постоянный)</option></select></div>
-    <div id="mincCfg" style="display:${meth0==='variable'?'none':'block'}">
-      <div class="row">
-        <div class="field" style="flex:1"><label id="mrateLbl">${meth0==='percent'?'Ставка, %':'Сумма'}</label><input class="inp" id="mrate" type="number" step="any" value="${c0.mode==='fixed'?(c0.rate??''):''}" placeholder="${meth0==='percent'?'напр. 3':'напр. 500'}"></div>
-        <div class="field" style="flex:1"><label>Период</label><select class="inp" id="miper">${[['day','в день'],['month','в месяц'],['quarter','в квартал'],['year','в год']].map(([v,t])=>`<option value="${v}" ${(c0.period||'month')===v?'selected':''}>${t}</option>`).join('')}</select></div>
-      </div></div></div></div>
+    </div>
     <div class="field"><label>Заметка</label><input class="inp" id="mnote" value="${it?esc(it.note||''):''}"></div>`,()=>{
     const name=document.getElementById('mn').value.trim();if(!name){toast('Введите название');return false;}
     const grp=document.getElementById('mg').value,cat=document.getElementById('mc').value.trim(),cur=document.getElementById('mcur').value,note=document.getElementById('mnote').value.trim();
     if(!cat){toast('Введите категорию');return false;}
     if(!S.categories.some(c=>c.name===cat&&c.group===grp))S.categories.push({name:cat,group:grp,color:PALETTE[S.categories.length%PALETTE.length]});
-    const meth=document.getElementById('mim').value;let income;
-    if(meth==='variable') income={mode:'variable'};
-    else income={mode:'fixed',by:(meth==='percent'?'percent':'amount'),period:document.getElementById('miper').value,rate:+document.getElementById('mrate').value||0};
-    const principal=document.getElementById('mprin').checked;
-    const selfReinvest=document.getElementById('mself').checked;
-    const subcategory=document.getElementById('msub').value.trim();
-    const costRaw=document.getElementById('mcost').value;const cost=costRaw===''?null:+costRaw;
+    const income=(it&&it.income)||{mode:'variable'}; // автоначисление дохода убрано из формы; у старых позиций настройка сохраняется
+    const principal=it?!!it.principal:false,selfReinvest=it?!!it.selfReinvest:false,subcategory=it?(it.subcategory||''):'',cost=it?(it.cost==null?null:it.cost):null;
     const inst=!!(document.getElementById('minst')&&document.getElementById('minst').checked&&(grp==='asset'||grp==='passive'));
     const totalRaw=document.getElementById('mtotal')?document.getElementById('mtotal').value:'',restRaw=document.getElementById('mrest')?document.getElementById('mrest').value:'';
     const total=inst?(totalRaw===''?null:+totalRaw):null,rest=inst?(+restRaw||0):0;
     if(inst&&(!(total>0)||rest<0||rest>total)){toast('Рассрочка: стоимость больше нуля, остаток от 0 до стоимости');return false;}
     const noIncome=!document.getElementById('mhasinc').checked;
     const byQty=document.getElementById('mbyqty').checked; const symbol=byQty?document.getElementById('msym').value:'';
-    const spending=document.getElementById('mspend').checked;
+    const spending=it?!!it.spending:false;
     const repayModeRaw=document.getElementById('mrepay')?document.getElementById('mrepay').value:'manual';
     const repayMode=(grp==='liability'&&repayModeRaw!=='manual')?repayModeRaw:null;
     const repayMonthly=repayMode==='monthly'?(+document.getElementById('mrepayAmt').value||0):null;
     if(it){const wasByQty=it.byQty;it.name=name;it.group=grp;it.category=cat;it.subcategory=subcategory;it.currency=cur;it.note=note;it.income=income;it.principal=principal;it.selfReinvest=selfReinvest;it.cost=cost;it.noIncome=noIncome;it.byQty=byQty;it.symbol=symbol;it.spending=spending;it.repayMode=repayMode;it.repayMonthly=repayMonthly;
       if(wasByQty&&!byQty){it.cost=null;delete it.qtyBase;delete it.costBase;delete it._firstTx;delete it._costSeed;}} // выключили «крипта по количеству» — не тащить старую крипто-себестоимость в обычную позицию
     else{const nid=uid();S.items.push({id:nid,name,group:grp,category:cat,subcategory,currency:cur,note,income,principal,selfReinvest,cost,noIncome,byQty,symbol,spending,repayMode,repayMonthly,createdAt:curMonth});
+      const openRaw=document.getElementById('mopen')?document.getElementById('mopen').value:'';
+      if(!inst&&openRaw!==''&&isFinite(+openRaw)){ if(byQty)mo(curMonth).qty[nid]=+openRaw; else mo(curMonth).values[nid]=(grp==='liability'?-Math.abs(+openRaw):+openRaw); } // начальный остаток текущего месяца; долг — со знаком минус
       if(total!=null)mo(curMonth).values[nid]=total; // стартовая стоимость (рассрочка), сумма в валюте позиции
       if(inst){ // долг рассрочки: отдельная позиция-обязательство со знаком минус
         const did=uid();if(!S.categories.some(c=>c.name==='Рассрочки'&&c.group==='liability'))S.categories.push({name:'Рассрочки',group:'liability',color:PALETTE[S.categories.length%PALETTE.length]});
