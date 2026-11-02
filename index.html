@@ -1246,6 +1246,7 @@ function pieSVG(map,k){const e=Object.entries(map).sort((a,b)=>b[1]-a[1]);const 
 
 /* ---------- modals ---------- */
 function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g=it?it.group:(group||'asset');
+  const qNow=it&&it.byQty?itemQty(it.id,curMonth):null; // для показа цены покупки за 1 монету
   const cats=S.categories.filter(c=>c.group===g);
   const c0=incomeCfg(it);const meth0=c0.mode!=='fixed'?'variable':(c0.by==='percent'?'percent':'amount');
   modal(id?'Изменить позицию':'Новая позиция',`
@@ -1260,7 +1261,7 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
       <div class="hint">Объект запишется по полной стоимости, а долг «Рассрочка: …» — на остаток, с текущего месяца. Платёж потом вносишь транзакцией «счёт → долг»; график платежей добавишь позже в карточке долга.</div></div></div>`}
     <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mbyqty" ${it&&it.byQty?'checked':''} onchange="itemModalByQty()"> Крипта: стоимость = количество × курс</label></div>
     <div class="field" id="msymWrap" style="display:${it&&it.byQty?'block':'none'}"><label>Монета</label><select class="inp" id="msym">${COIN_SYMBOLS.map(s=>`<option ${it&&it.symbol===s?'selected':''}>${s}</option>`).join('')}</select></div>
-    <div class="field" id="mcostWrap" style="display:${it&&it.byQty?'block':'none'}"><label>Цена покупки ВСЕГО, $ (количество × цена за монету)</label><input class="inp" id="mcost" type="text" inputmode="text" value="${it&&it.cost!=null&&it.cost!==''?it.cost:''}" placeholder="за всё количество; можно 313622*0.3028"></div>
+    <div class="field" id="mcostWrap" style="display:${it&&it.byQty?'block':'none'}"><label>Средняя цена покупки за 1 монету, $</label><input class="inp" id="mcost" type="text" inputmode="text" value="${it&&it.cost!=null&&it.cost!==''&&qNow?(+(it.cost/qNow).toPrecision(6)):''}" placeholder="напр. 0.3028 или 75000"></div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mspend" ${it&&it.spending?'checked':''}> 🛒 Тратный счёт (трачу отсюда)</label><div class="hint">Для счёта в «Свободных средствах»: недостача при сверке считается расходом. Не отмечен — накопительный счёт.</div></div>
     <div class="field" id="mrepayWrap" style="display:${g==='liability'?'block':'none'}">
       <label>График погашения</label>
@@ -1293,8 +1294,11 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
     if(inst&&(!(total>0)||rest<0||rest>total)){toast('Рассрочка: стоимость больше нуля, остаток от 0 до стоимости');return false;}
     const noIncome=!document.getElementById('mhasinc').checked;
     const costRaw=document.getElementById('mcost').value,costP=costRaw===''?null:parseExpr(costRaw);
-    if(document.getElementById('mbyqty').checked&&costRaw!==''&&costP===null){toast('Не понял выражение: допустимы числа и + - * /');return false;}
-    const cost=(document.getElementById('mbyqty').checked&&costRaw!=='')?costP:cost0;
+    const isQ=document.getElementById('mbyqty').checked;
+    if(isQ&&costRaw!==''&&costP===null){toast('Не понял выражение: допустимы числа и + - * /');return false;}
+    const openEl=document.getElementById('mopen'),qHave=it?itemQty(it.id,curMonth):(openEl&&openEl.value!==''?parseExpr(openEl.value):null);
+    if(isQ&&costP!=null&&!(qHave>0)){toast('Сначала укажи количество монет (начальный остаток)');return false;}
+    const cost=(isQ&&costP!=null)?costP*qHave:cost0; // цена за 1 монету × количество = база в $
     const byQty=document.getElementById('mbyqty').checked; const symbol=byQty?document.getElementById('msym').value:'';
     const spending=document.getElementById('mspend').checked;
     const repayModeRaw=document.getElementById('mrepay')?document.getElementById('mrepay').value:'manual';
