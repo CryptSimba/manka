@@ -929,7 +929,7 @@ function viewEntry(){
   });
   // итоговая сверка
   const exp=monthExpenseUSD(k), inc=totalIncomeUSD(k);
-  let un=0;accts.forEach(a=>{if(!a.spending){un+=(itemValUSD(a.id,k)-accountExpectedUSD(a.id,k));}});
+  let un=0;accts.forEach(a=>{if(!a.spending&&!(prev==null||a.createdAt===k)){un+=(itemValUSD(a.id,k)-accountExpectedUSD(a.id,k));}}); // начальные остатки (первый месяц / позиция заведена в этом месяце) сверять не с чем
   const unOk=Math.abs(un)<1;const needsCheck=S.items.some(i=>(i.group==='reserve'||i.group==='activity'||i.group==='liability')&&!isArch(i,k)&&(!i.createdAt||k>=i.createdAt)&&(m.values[i.id]==null||m.values[i.id]===''));
   const cs=cashSurplusUSD(k),over=cs<-0.5; // нарастающим итогом: доход минус расход за ВСЕ месяцы — переходит из месяца в месяц (как НП, только по кэшу, не по инвестициям)
   secB+=`<div class="panel"><div class="panel-h"><h2>Итог сверки</h2><span class="chip ${needsCheck?'up':unOk?'g':'r'}">${needsCheck?'⚠ ввести счета':unOk?'✓ сходится':'⚠ несходится '+fmt(Math.abs(un),k)}</span></div>
