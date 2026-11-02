@@ -979,6 +979,9 @@ function updTot(){/* лёгкое обновление итога дохода �
 
 /* ---------- HISTORY ---------- */
 // удалить ПОСЛЕДНИЙ месяц целиком — напр. случайно созданный будущий месяц (нечаянный переход вперёд до фикса navM)
+function monthIsEmpty(m){const has=o=>o&&Object.keys(o).some(id=>o[id]!=null&&o[id]!=='');return !(has(m.values)||has(m.income)||has(m.qty)||has(m.px)||(m.moves&&m.moves.length)||(m.extras&&m.extras.length)||(m.rate&&+m.rate));}
+function purgeEmptyMonthsConfirm(){const ks=Object.keys(S.months).filter(k=>monthIsEmpty(S.months[k]));if(!ks.length){toast('Пустых месяцев нет');return;}
+  confirmModal('Удалить пустые месяцы?','Будут удалены месяцы без введённых данных: '+ks.join(', ')+'. Месяцы с данными не тронуты.',()=>{ks.forEach(k=>delete S.months[k]);_monthListCache=null;curMonth=latestMonth()||thisMonth();save();render();toast('Удалено: '+ks.length);});}
 function delMonthConfirm(k){
   if(k!==latestMonth()){toast('Можно удалить только последний месяц');return;}
   const m=S.months[k];
@@ -1007,7 +1010,7 @@ function viewHistory(){
       <td class="${sign(mtm)}">${fmt(mtm,k)}</td><td class="${sign(np)}">${fmt(np,k)}</td>
       <td class="muted">${S.months[k].rate||''}</td>
       <td>${k===lm?`<button class="link-btn del" onclick="delMonthConfirm('${k}')" title="Удалить этот месяц целиком (напр. случайно созданный будущий месяц)">✕</button>`:''}</td></tr>`;}).join('');
-  return `<div class="panel"><div class="panel-h"><h2>История по месяцам</h2><button class="btn ghost sm" onclick="exportCSV()">⤓ CSV</button></div>
+  return `<div class="panel"><div class="panel-h"><h2>История по месяцам</h2><span><button class="btn ghost sm" onclick="purgeEmptyMonthsConfirm()">Удалить пустые месяцы</button> <button class="btn ghost sm" onclick="exportCSV()">⤓ CSV</button></span></div>
     <div class="scroll-x"><table><thead><tr><th>Месяц</th><th>Активы</th><th>Пассивы</th><th>Обязат.</th><th>Чистый капитал</th><th>Δ</th><th>Доход</th><th title="Нарастающим итогом с месяца начала учёта (Настройки→«Доход и расход»)">Баланс дох/расх</th><th title="Продать всё сейчас, от цены покупки/первой известной">Нереализ. прибыль (рынок)</th><th title="Реинвест-дисциплина: цель% минус то, что реально выведено на траты">НП инвестиции</th><th>Курс</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
