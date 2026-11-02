@@ -201,11 +201,12 @@ function b64enc(s){return btoa(unescape(encodeURIComponent(s)));}
 function b64dec(s){return decodeURIComponent(escape(atob(s)));}
 let pushT, cloudBusy=false, pushPending=false; let cloudT=0, cloudBlocked=false; // cloudBlocked: читать облако не удалось или там версия новее — не пушим до перезапуска
   // t из ft_meta, который мы последний раз загрузили или записали сами
-function scheduleCloudPush(){ if(!CLOUD)return; clearTimeout(pushT); pushT=setTimeout(cloudPush,1500); }
+let cloudDirty=false; // есть правки, ещё не ушедшие в облако
+function scheduleCloudPush(){ if(!CLOUD)return; cloudDirty=true; clearTimeout(pushT); pushT=setTimeout(cloudPush,5000); }
 async function cloudPush(){
   if(!CLOUD||cloudBlocked)return;
   if(cloudBusy){ pushPending=true; return; } // уже идёт отправка — не теряем правку, отправим повторно сразу после
-  cloudBusy=true;
+  cloudBusy=true; cloudDirty=false;
   try{
     const b64=b64enc(JSON.stringify(S)); const CH=3800; const n=Math.max(1,Math.ceil(b64.length/CH));
     let oldN=0, oldT=0; const om=await csGet('ft_meta'); if(om===undefined)throw new Error('cloud read failed'); if(om){try{const o=JSON.parse(om);oldN=o.n||0;oldT=o.t||0;}catch(_){}}
@@ -217,7 +218,7 @@ async function cloudPush(){
     const t=nowTs(); await csSet('ft_meta', JSON.stringify({n:n,t:t,v:2})); cloudT=t;
     lastCloudSyncTs=nowTs();
     setSync('☁ '+syncAgoLabel());
-  }catch(e){ setSync('☁ ошибка синка'); }
+  }catch(e){ cloudDirty=true; setSync('☁ ошибка синка'); }
   cloudBusy=false;
   if(pushPending){ pushPending=false; scheduleCloudPush(); }
 }
@@ -293,7 +294,7 @@ async function initApp(){
     if(pendingLocalEdit){ if(S.items&&S.items.length)scheduleCloudPush(); setSync('☁ локальные правки сохранены'); } // правка сделана до завершения загрузки — не затираем её пришедшим снапшотом
     else if(cloud && cloud.items){ try{ if(S.items&&S.items.length)localStorage.setItem(LS+'_prev',JSON.stringify(S)); }catch(_){} /* копия локальных данных перед заменой облаком */ S=cloud; ['categories','fundAccounts','items'].forEach(k=>S[k]=S[k]||[]); S.months=S.months||{}; if(!S.fx)S.fx=Object.assign({},DEFAULT_FX); display=S.display||'USD'; _monthListCache=null; curMonth=latestMonth()||thisMonth(); try{localStorage.setItem(LS,JSON.stringify(S));}catch(_){} render(); setSync('☁ '+syncAgoLabel()); }
     else { if(S.items&&S.items.length){ scheduleCloudPush(); } else { setSync('☁ пусто — импортируйте бэкап'); } }
-    setInterval(()=>{ if(!cloudBusy)cloudPush(); },30000); // подстраховка раз в 30с — на случай если дебаунс пропал (свёрнутая вкладка и т.п.)
+    setInterval(()=>{ if(cloudDirty&&!cloudBusy)cloudPush(); },300000); // подстраховка раз в 5 мин и только если есть неотправленные правки
     setInterval(tickSyncStatus,5000); // живой «синхр. N сек/мин назад» на вкладке Настройки
   }
 }
