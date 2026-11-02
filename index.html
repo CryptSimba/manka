@@ -1045,8 +1045,14 @@ function viewManage(){
 }
 
 /* ---------- SETTINGS ---------- */
-function setFx(c,v){if(!S.fx)S.fx={};S.fx[c]=v===''?'':+v;save();}
-function setFxAdjust(c,v){if(!S.fxAdjust)S.fxAdjust={};S.fxAdjust[c]=v===''?'':+v;save();}
+function setFx(c,v){if(!S.fx)S.fx={};S.fx[c]=v===''?'':+v;if(v!==''){if(!S.fxRaw)S.fxRaw={};S.fxRaw[c]=+v/(1+((S.fxAdjust&&+S.fxAdjust[c])||0)/100);}save();} // руками введённый курс уже «с поправкой»
+function setFxAdjust(c,v){ // курс в настройках показывается уже с поправкой: пересчитываем сразу, от курса без поправки (S.fxRaw)
+  if(!S.fxAdjust)S.fxAdjust={};if(!S.fxRaw)S.fxRaw={};if(!S.fx)S.fx={};
+  const prev=+S.fxAdjust[c]||0,nw=v===''?0:+v;
+  const raw=S.fxRaw[c]!=null?+S.fxRaw[c]:(S.fx[c]!=null&&S.fx[c]!==''?+S.fx[c]/(1+prev/100):null);
+  S.fxAdjust[c]=v===''?'':+v;
+  if(raw!=null&&isFinite(raw)){S.fxRaw[c]=raw;S.fx[c]=raw*(1+nw/100);const el=document.getElementById('fxin_'+c);if(el)el.value=+(+S.fx[c]).toPrecision(8);}
+  save();}
 function setFxEnabled(c,v){if(!S.fxEnabled)S.fxEnabled={};S.fxEnabled[c]=!!v;save();render();}
 // пересчитать уже ЗАФИКСИРОВАННЫЕ курсы прошлых месяцев с учётом текущей поправки. Безопасно для повторного
 // запуска (напр. если поправку потом подправите) — всегда считает от ИСХОДНОГО (до поправки) курса в
@@ -1183,7 +1189,7 @@ async function fetchRates(opts){opts=opts||{};const silent=opts.silent;
     // отклонение) — коэффициент применяется тут
     const adj=c=>1+((S.fxAdjust&&S.fxAdjust[c])?+S.fxAdjust[c]:0)/100;
     const enabled=curOn; // галочка в Настройках — не тянуть ненужные валюты автообновлением
-    FX_FETCH_CURRENCIES.forEach(c=>{if(j.rates[c]&&enabled(c))S.fx[c]=+j.rates[c]*adj(c);});
+    FX_FETCH_CURRENCIES.forEach(c=>{if(j.rates[c]&&enabled(c)){S.fx[c]=+j.rates[c]*adj(c);if(!S.fxRaw)S.fxRaw={};S.fxRaw[c]=+j.rates[c];}});
     S.fxUpdated=(j.time_last_update_unix?j.time_last_update_unix*1000:nowTs());
     if(stamp){const m=mo(stamp);m.rate=+S.fx.RUB;m.rateRaw=j.rates.RUB!=null?+j.rates.RUB:m.rateRaw;m.fx=m.fx||{};m.fxRaw=m.fxRaw||{};
       ['EUR','THB','VND','KZT','IDR'].filter(enabled).forEach(c=>{if(S.fx[c])m.fx[c]=+S.fx[c];if(j.rates[c]!=null)m.fxRaw[c]=+j.rates[c];});} // fxRaw/rateRaw — курс ДО поправки, нужен чтобы reapplyFxAdjust() мог пересчитать без повторного домножения
@@ -1202,7 +1208,7 @@ function viewSettings(){
    </div></div>
    <div class="panel"><div class="panel-h"><h2>Валюты и курсы</h2><span class="muted">курсы от ${fxUpdatedLabel()} <button class="btn ghost sm" onclick="fetchRates()">🔄 Обновить</button></span></div><div class="panel-b">
      <div class="hint" style="margin-bottom:10px">Значения можно вносить в любой валюте — у каждой позиции, счёта и «прочего дохода» своя. Всё пересчитывается в доллары. Сколько единиц валюты за <b>1&nbsp;$</b>:</div>
-     ${(()=>{const row=c=>{const on=curOn(c),used=usedCurs().has(c);return `<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:5px;cursor:pointer" title="Включить валюту: появится в формах и будет обновляться (кнопка «Обновить» / фон раз в 12ч)"><input type="checkbox" ${on?'checked':''} ${used||c==='RUB'?'disabled title="Используется или базовая валюта"':''} onchange="setFxEnabled('${c}',this.checked)"></label><span style="width:52px">1 $ =</span><input class="inp" style="max-width:150px" type="number" step="any" value="${(S.fx&&S.fx[c]!=null&&S.fx[c]!=='')?S.fx[c]:DEFAULT_FX[c]}" oninput="setFx('${c}',this.value)"><span class="muted">${c} ${CUR_SYMBOL[c]}</span><input class="inp" style="max-width:80px" type="number" step="any" placeholder="0" value="${(S.fxAdjust&&S.fxAdjust[c]!=null&&S.fxAdjust[c]!=='')?S.fxAdjust[c]:''}" oninput="setFxAdjust('${c}',this.value)" title="Поправка на ваш реальный курс обмена (P2P/обменник), %. Применяется при автозагрузке: курс×(1+поправка/100)"><span class="muted">поправка %</span></div>`;};const on=FX_FETCH_CURRENCIES.filter(curOn),off=FX_FETCH_CURRENCIES.filter(c=>!curOn(c));return on.map(row).join('')+(off.length?`<details style="margin-top:6px"><summary class="muted" style="cursor:pointer;padding:6px 0">Другие валюты (${off.length})</summary>${off.map(row).join('')}</details>`:'');})()}
+     ${(()=>{const row=c=>{const on=curOn(c),used=usedCurs().has(c);return `<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:5px;cursor:pointer" title="Включить валюту: появится в формах и будет обновляться (кнопка «Обновить» / фон раз в 12ч)"><input type="checkbox" ${on?'checked':''} ${used||c==='RUB'?'disabled title="Используется или базовая валюта"':''} onchange="setFxEnabled('${c}',this.checked)"></label><span style="width:52px">1 $ =</span><input class="inp" id="fxin_${c}" style="max-width:150px" type="number" step="any" value="${(S.fx&&S.fx[c]!=null&&S.fx[c]!=='')?S.fx[c]:DEFAULT_FX[c]}" oninput="setFx('${c}',this.value)"><span class="muted">${c} ${CUR_SYMBOL[c]}</span><input class="inp" style="max-width:80px" type="number" step="any" placeholder="0" value="${(S.fxAdjust&&S.fxAdjust[c]!=null&&S.fxAdjust[c]!=='')?S.fxAdjust[c]:''}" oninput="setFxAdjust('${c}',this.value)" title="Поправка на ваш реальный курс обмена (P2P/обменник), %. Курс слева показывается уже с поправкой: курс×(1+поправка/100)"><span class="muted">поправка %</span></div>`;};const on=FX_FETCH_CURRENCIES.filter(curOn),off=FX_FETCH_CURRENCIES.filter(c=>!curOn(c));return on.map(row).join('')+(off.length?`<details style="margin-top:6px"><summary class="muted" style="cursor:pointer;padding:6px 0">Другие валюты (${off.length})</summary>${off.map(row).join('')}</details>`:'');})()}
      <div class="hint" style="margin-top:8px">Рубль: курс фиксируется отдельно за каждый месяц (во вкладке «Заполнить месяц») и дальше не меняется; тут — курс по умолчанию для новых месяцев. «Поправка» — разница между официальным курсом и тем, что реально получаете при конвертации (обычно отрицательная) — применяется только при нажатии «Обновить»/автообновлении, на курс, введённый вручную, не влияет.</div>
    </div></div>
    <div class="panel"><div class="panel-h"><h2>Цены крипты</h2><span class="muted">${cryptoPxUpdatedLabel()} <button class="btn ghost sm" onclick="fetchCryptoPrices()">🔄 Обновить</button></span></div><div class="panel-b">
