@@ -1251,7 +1251,7 @@ function pieSVG(map,k){const e=Object.entries(map).sort((a,b)=>b[1]-a[1]);const 
     const x1=cx+r*Math.cos(a),y1=cy+r*Math.sin(a),x2=cx+r*Math.cos(a2),y2=cy+r*Math.sin(a2),xi1=cx+ir*Math.cos(a2),yi1=cy+ir*Math.sin(a2),xi2=cx+ir*Math.cos(a),yi2=cy+ir*Math.sin(a);
     arcs+=`<path d="M${x1} ${y1} A${r} ${r} 0 ${lg} 1 ${x2} ${y2} L${xi1} ${yi1} A${ir} ${ir} 0 ${lg} 0 ${xi2} ${yi2} Z" fill="${catColor(c)}" stroke="var(--panel)" stroke-width="1.5"/>`;a=a2;});
   const leg=e.map(([c,v])=>`<span class="item"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)} <b>${(v/tot*100).toFixed(0)}%</b></span>`).join('');
-  return `<div style="display:flex;gap:18px;align-items:center;justify-content:center;flex-wrap:wrap"><svg viewBox="0 0 176 176" width="176" style="flex:none">${arcs}<text x="88" y="84" text-anchor="middle">всего</text><text x="88" y="100" text-anchor="middle" style="fill:var(--text);font-weight:700;font-size:12px">${fmtShort(tot,k)}</text></svg><div class="legend" style="flex-direction:column;gap:8px;margin:0">${leg}</div></div>`;}
+  return `<div style="display:flex;gap:14px;align-items:center;flex-wrap:nowrap"><svg viewBox="0 0 176 176" width="140" style="flex:none">${arcs}<text x="88" y="84" text-anchor="middle">всего</text><text x="88" y="100" text-anchor="middle" style="fill:var(--text);font-weight:700;font-size:12px">${fmtShort(tot,k)}</text></svg><div class="legend" style="flex:1;min-width:0;flex-direction:column;align-items:flex-start;gap:6px;margin:0;font-size:13px">${leg}</div></div>`;}
 
 /* ---------- modals ---------- */
 function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g=it?it.group:(group||'asset');
