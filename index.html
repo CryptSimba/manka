@@ -925,7 +925,7 @@ function viewEntry(){
       const hdr=multi?`<tr class="cat-row"><td colspan="4"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)} <span class="muted" style="font-weight:400">· ${cItems.length}</span></td></tr>`:'';
       return hdr+cItems.map(itemBalRow).join('');}).join('');
     secB+=`<div class="panel"><div class="panel-h"><h2 style="color:${GROUP_COLOR[g]}">${GROUPS[g]}</h2><div class="toolbar"><button class="btn ghost sm" onclick="itemModal(null,'${g}')">+ позиция</button><span class="muted">${fmt(groupTotalUSD(g,k),k)}</span></div></div>
-      <div class="scroll-x"><table><thead><tr><th>Позиция</th><th>${isReserve?'Остаток':g==='activity'?'Вложено':'Стоимость / кол-во'}</th><th colspan="2">${isReserve?'Сверка':g==='activity'?'':'в $'}</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+      <div class="scroll-x"><table><thead><tr><th>Позиция</th><th>${g==='liability'?'Остаток (− = я должен)':isReserve?'Остаток':g==='activity'?'Вложено':'Стоимость / кол-во'}</th><th colspan="2">${isReserve?'Сверка':g==='activity'?'':'в $'}</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   });
   // итоговая сверка
   const exp=monthExpenseUSD(k), inc=totalIncomeUSD(k);
