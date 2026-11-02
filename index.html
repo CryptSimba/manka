@@ -201,6 +201,9 @@ function b64enc(s){return btoa(unescape(encodeURIComponent(s)));}
 function b64dec(s){return decodeURIComponent(escape(atob(s)));}
 let pushT, cloudBusy=false, pushPending=false; let cloudT=0, cloudBlocked=false; // cloudBlocked: читать облако не удалось или там версия новее — не пушим до перезапуска
   // t из ft_meta, который мы последний раз загрузили или записали сами
+let cloudForce=false;
+function cloudReadFailedModal(why){modal('Облако не прочиталось','Причина: <b>'+esc(why||'неизвестно')+'</b>. Данные на этом устройстве целы, синк выключен, ничего не перезаписано.<div style="margin:10px 0">Если данные здесь актуальные, а в облаке мусор или старая копия — запиши эти данные в облако (старое облако будет заменено).</div><button class="btn" onclick="exportJSON()">⤓ Бэкап</button> <button class="btn danger" onclick="cloudForcePush()">Перезаписать облако моими данными</button>');}
+function cloudForcePush(){confirmModal('Перезаписать облако?','В облаке останется только то, что сейчас на этом устройстве. Сделал бэкап?',async()=>{if(!(S.items&&S.items.length)){toast('Здесь пусто — нечего записывать');return;}cloudBlocked=false;cloudForce=true;await cloudPush();cloudForce=false;});}
 let cloudDirty=false; // есть правки, ещё не ушедшие в облако
 function scheduleCloudPush(){ if(!CLOUD)return; cloudDirty=true; clearTimeout(pushT); pushT=setTimeout(cloudPush,5000); }
 async function cloudPush(){
@@ -209,10 +212,10 @@ async function cloudPush(){
   cloudBusy=true; cloudDirty=false;
   try{
     const b64=b64enc(JSON.stringify(S)); const CH=3800; const n=Math.max(1,Math.ceil(b64.length/CH));
-    let oldN=0, oldT=0; const om=await csGet('ft_meta'); if(om===undefined)throw new Error('cloud read failed'); if(om){try{const o=JSON.parse(om);oldN=o.n||0;oldT=o.t||0;}catch(_){}}
+    let oldN=0, oldT=0; const om=await csGet('ft_meta'); if(om===undefined)throw new Error('Telegram не вернул данные облака (ошибка чтения)'); if(om){try{const o=JSON.parse(om);oldN=o.n||0;oldT=o.t||0;}catch(_){}}
     // защита от затирания: в облаке уже есть версия, которую мы не загружали/не писали, или у нас пусто — не перезаписываем
     if(om && !(S.items&&S.items.length)){ cloudBusy=false; setSync('☁ пусто — добавь данные или импортируй бэкап'); return; } // пустым облако не перезаписываем, но и не блокируемся навсегда
-    if(om && oldT!==cloudT){ cloudBlocked=true; cloudBusy=false; setSync('☁ синк остановлен'); modal('Синк остановлен','В облаке другая версия данных (или здесь пусто). Ничего не перезаписано. Скачай бэкап текущих данных, затем перезапусти приложение — оно загрузит облако.<div style="margin-top:10px"><button class="btn" onclick="exportJSON()">⤓ Бэкап</button></div>'); return; }
+    if(om && oldT!==cloudT && !cloudForce){ cloudBlocked=true; cloudBusy=false; setSync('☁ синк остановлен'); modal('Синк остановлен','В облаке другая версия данных (или здесь пусто). Ничего не перезаписано. Скачай бэкап текущих данных, затем перезапусти приложение — оно загрузит облако.<div style="margin-top:10px"><button class="btn" onclick="exportJSON()">⤓ Бэкап</button></div>'); return; }
     for(let i=0;i<n;i++){ await csSet('ft_'+i, b64.slice(i*CH,(i+1)*CH)); }
     if(oldN>n){const rm=[];for(let i=n;i<oldN;i++)rm.push('ft_'+i);await csRemove(rm);}
     const t=nowTs(); await csSet('ft_meta', JSON.stringify({n:n,t:t,v:2})); cloudT=t;
@@ -224,13 +227,13 @@ async function cloudPush(){
 }
 async function cloudPull(){
   if(!CLOUD)return null;
-  const meta=await csGet('ft_meta'); if(meta===undefined)throw new Error('cloud read failed'); if(!meta)return null;
-  let m; try{m=JSON.parse(meta);}catch(_){throw new Error('cloud meta corrupt');} if(!m||!m.n)return null;
+  const meta=await csGet('ft_meta'); if(meta===undefined)throw new Error('Telegram не вернул данные облака (ошибка чтения)'); if(!meta)return null;
+  let m; try{m=JSON.parse(meta);}catch(_){throw new Error('служебная запись облака повреждена');} if(!m||!m.n)return null;
   cloudT=m.t||0; if(m.t)lastCloudSyncTs=m.t; // последняя точка синка из облака (до нашего первого пуша в этой сессии)
   const keys=[];for(let i=0;i<m.n;i++)keys.push('ft_'+i);
-  const items=await csGetItems(keys); if(!items)throw new Error('cloud read failed');
+  const items=await csGetItems(keys); if(!items)throw new Error('Telegram не вернул данные облака (ошибка чтения)');
   let b64='';for(let i=0;i<m.n;i++){ b64+=(items['ft_'+i]||''); }
-  try{ return JSON.parse(b64dec(b64)); }catch(_){ throw new Error('cloud data corrupt'); }
+  try{ return JSON.parse(b64dec(b64)); }catch(_){ throw new Error('данные в облаке повреждены или обрезаны'); }
 }
 function nowTs(){try{return Date.now();}catch(_){return 0;}}
 function setSync(txt){const el=document.getElementById('syncStatus');if(el)el.textContent=txt;}
@@ -289,7 +292,7 @@ async function initApp(){
   if(CLOUD){
     setSync('☁ загрузка…');
     let cloud=null;
-    try{ cloud=await cloudPull(); }catch(_){ cloudBlocked=true; setSync('☁ облако недоступно — синк выключен'); toast('Облако не прочиталось: синк выключен, данные не тронуты'); }
+    try{ cloud=await cloudPull(); }catch(e){ cloudBlocked=true; setSync('☁ облако недоступно — синк выключен'); cloudReadFailedModal(e&&e.message); }
     cloudPullDone=true;
     if(pendingLocalEdit){ if(S.items&&S.items.length)scheduleCloudPush(); setSync('☁ локальные правки сохранены'); } // правка сделана до завершения загрузки — не затираем её пришедшим снапшотом
     else if(cloud && cloud.items){ try{ if(S.items&&S.items.length)localStorage.setItem(LS+'_prev',JSON.stringify(S)); }catch(_){} /* копия локальных данных перед заменой облаком */ S=cloud; ['categories','fundAccounts','items'].forEach(k=>S[k]=S[k]||[]); S.months=S.months||{}; if(!S.fx)S.fx=Object.assign({},DEFAULT_FX); display=S.display||'USD'; _monthListCache=null; curMonth=latestMonth()||thisMonth(); try{localStorage.setItem(LS,JSON.stringify(S));}catch(_){} render(); setSync('☁ '+syncAgoLabel()); }
