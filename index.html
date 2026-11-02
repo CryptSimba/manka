@@ -898,11 +898,13 @@ function viewEntry(){
         ${(()=>{const qExpr=(m.qtyExpr&&m.qtyExpr[i.id])||'';const qVal=qExpr!==''?qExpr:(m.qty[i.id]??'');const qSum=/^.+[+\-].+$/.test(qExpr)&&parseExpr(qExpr)!=null;const qPh=hideAmt?'•••':(q!=null?q:'0');return `<td><input class="inp" style="max-width:110px" type="${hideAmt?'password':'text'}" inputmode="text" value="${esc(''+qVal)}" placeholder="${qPh}" oninput="setQty('${i.id}',this.value)" onchange="render()" title="Количество можно писать суммой через + (разные кошельки)"><div class="muted" style="font-size:10px">${qSum?'= '+(hideAmt?'•••':(m.qty[i.id]).toLocaleString('ru-RU'))+' · ':''}= ${fmt(vUSD,k)}${carried?` · <span class="tag" style="background:var(--amber);color:#fff;font-size:9px" title="Количество перенесено с прошлого месяца, вы его не подтверждали">↩ перенесено</span> <button class="link-btn" style="font-size:10px" onclick="confirmQty('${i.id}')">подтвердить</button>`:''}</div></td>`;})()}
         <td colspan="2" class="muted" style="font-size:10px">покупка/продажа — во вкладке «🔄 Транзакции»</td></tr>`;}
       if(isReserve){const auto=(m.values[i.id]==null||m.values[i.id]==='');const entered=itemValUSD(i.id,k),expected=accountExpectedUSD(i.id,k),diff=entered-expected,ok=Math.abs(diff)<1;
+        const opening=prev==null||i.createdAt===k; // первый месяц или позиция заведена в этом месяце: сверять не с чем
         let st;
-        if(auto){st=`<span style="color:var(--green)">✓ авто</span>`;}
+        if(opening&&!auto){st=`<span class="muted">начальный остаток</span>`;}
+        else if(auto){st=`<span style="color:var(--green)">✓ авто</span>`;}
         else if(i.spending){st=diff<-0.5?`<span class="neg">↓ расход ${fmt(-diff,k)}</span>`:(diff>0.5?`<span class="pos">+${fmt(diff,k)}?</span>`:`<span style="color:var(--green)">✓</span>`);}
         else {st=ok?`<span style="color:var(--green)">✓ сходится</span>`:`<span class="neg" title="ожидалось ${fmt(expected,k)}">⚠ Δ ${fmt(diff,k)}</span>`;}
-        return `<tr${auto?' style="background:rgba(201,138,0,.06)"':''}><td><span class="dot" style="background:${catColor(i.category)}"></span>${esc(i.name)}${i.spending?' <span class="tag" style="background:var(--amber);color:#fff;font-size:9px">трачу</span>':''}<div class="muted" style="font-size:10px">${auto?'↩ авто: ':'ожид. '}${fmt(expected,k)}${auto?' <span class="tag" style="background:var(--amber);color:#fff;font-size:9px" title="Остаток посчитан сам: прошлый остаток + доход + транзакции. Введи число, только если фактический остаток отличается (тогда разница = расход/недостача).">из транзакций</span>':''}</div></td>
+        return `<tr${auto?' style="background:rgba(201,138,0,.06)"':''}><td><span class="dot" style="background:${catColor(i.category)}"></span>${esc(i.name)}${i.spending?' <span class="tag" style="background:var(--amber);color:#fff;font-size:9px">трачу</span>':''}<div class="muted" style="font-size:10px">${opening&&!auto?'':(auto?'↩ авто: ':'ожид. ')+fmt(expected,k)}${auto?' <span class="tag" style="background:var(--amber);color:#fff;font-size:9px" title="Остаток посчитан сам: прошлый остаток + доход + транзакции. Введи число, только если фактический остаток отличается (тогда разница = расход/недостача).">из транзакций</span>':''}</div></td>
         <td>${balInputHTML(i,k)}</td>
         <td colspan="2">${st}</td></tr>`;}
       if(i.group==='activity'||i.selfReinvest){const auto=(m.values[i.id]==null||m.values[i.id]==='');const invested=itemValUSD(i.id,k);
@@ -1258,6 +1260,7 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
     <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mbyqty" ${it&&it.byQty?'checked':''} onchange="itemModalByQty()"> Крипта: стоимость = количество × курс</label></div>
     <div class="field" id="msymWrap" style="display:${it&&it.byQty?'block':'none'}"><label>Монета</label><select class="inp" id="msym">${COIN_SYMBOLS.map(s=>`<option ${it&&it.symbol===s?'selected':''}>${s}</option>`).join('')}</select></div>
     <div class="field" id="mcostWrap" style="display:${it&&it.byQty?'block':'none'}"><label>Цена покупки всего, $ (для прибыли; потом считается из транзакций)</label><input class="inp" id="mcost" type="number" step="any" value="${it&&it.cost!=null&&it.cost!==''?it.cost:''}" placeholder="сколько $ заплатил за всё количество"></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--text)"><input type="checkbox" id="mspend" ${it&&it.spending?'checked':''}> 🛒 Тратный счёт (трачу отсюда)</label><div class="hint">Для счёта в «Свободных средствах»: недостача при сверке считается расходом. Не отмечен — накопительный счёт.</div></div>
     <div class="field" id="mrepayWrap" style="display:${g==='liability'?'block':'none'}">
       <label>График погашения</label>
       <select class="inp" id="mrepay" onchange="itemModalRepay()">
@@ -1290,7 +1293,7 @@ function itemModal(id,group){const it=id?S.items.find(x=>x.id===id):null;const g
     const noIncome=!document.getElementById('mhasinc').checked;
     const costRaw=document.getElementById('mcost').value,cost=(document.getElementById('mbyqty').checked&&costRaw!=='')?+costRaw:cost0;
     const byQty=document.getElementById('mbyqty').checked; const symbol=byQty?document.getElementById('msym').value:'';
-    const spending=it?!!it.spending:false;
+    const spending=document.getElementById('mspend').checked;
     const repayModeRaw=document.getElementById('mrepay')?document.getElementById('mrepay').value:'manual';
     const repayMode=(grp==='liability'&&repayModeRaw!=='manual')?repayModeRaw:null;
     const repayMonthly=repayMode==='monthly'?(+document.getElementById('mrepayAmt').value||0):null;
